@@ -9,6 +9,10 @@ export interface UserType {
   updated_at: Date;
   roles: string[];
   permissions: string[];
+  role_ids?: number[];
+  permission_ids?: number[];
+  inherited_permissions?: number[];
+  role_details?: { id: number; name: string; description?: string }[];
 }
 
 export interface UserCreateRequest {
@@ -27,6 +31,8 @@ export interface UserUpdateRequest {
   name?: string;
   avatar?: string;
   active?: boolean;
+  roleIds?: number[];
+  permissionIds?: number[];
 }
 
 export interface UserRoleAssignRequest {

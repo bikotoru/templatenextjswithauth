@@ -130,19 +130,28 @@ export class UserBackendService {
         return { success: false, error: 'Usuario no encontrado' };
       }
 
-      // Obtener roles del usuario
+      // Obtener roles del usuario con detalles completos
       const rolesQuery = `
-        SELECT r.name
+        SELECT r.id, r.name, r.description
         FROM roles r
         INNER JOIN user_roles ur ON r.id = ur.role_id
         WHERE ur.user_id = @userId AND r.active = 1
         ORDER BY r.name
       `;
-      const roles = await executeQuery<{ name: string }>(rolesQuery, { userId: id });
+      const roles = await executeQuery<{ id: number; name: string; description?: string }>(rolesQuery, { userId: id });
+
+      // Obtener permisos heredados por roles
+      const inheritedPermissionsQuery = `
+        SELECT DISTINCT rp.permission_id
+        FROM role_permissions rp
+        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+        WHERE ur.user_id = @userId
+      `;
+      const inheritedPermissions = await executeQuery<{ permission_id: number }>(inheritedPermissionsQuery, { userId: id });
 
       // Obtener permisos del usuario (directos + por roles)
       const permissionsQuery = `
-        SELECT p.permission_key
+        SELECT p.id, p.permission_key
         FROM permissions p
         WHERE p.active = 1 
         AND p.id IN (
@@ -159,12 +168,32 @@ export class UserBackendService {
         )
         ORDER BY p.permission_key
       `;
-      const permissions = await executeQuery<{ permission_key: string }>(permissionsQuery, { userId: id });
+      const permissions = await executeQuery<{ id: number; permission_key: string }>(permissionsQuery, { userId: id });
+
+      // Obtener role_ids directos del usuario
+      const userRoleIdsQuery = `
+        SELECT role_id
+        FROM user_roles
+        WHERE user_id = @userId
+      `;
+      const userRoleIds = await executeQuery<{ role_id: number }>(userRoleIdsQuery, { userId: id });
+
+      // Obtener permission_ids directos del usuario
+      const userPermissionIdsQuery = `
+        SELECT permission_id
+        FROM user_permissions
+        WHERE user_id = @userId
+      `;
+      const userPermissionIds = await executeQuery<{ permission_id: number }>(userPermissionIdsQuery, { userId: id });
 
       const userWithDetails: UserType = {
         ...user,
         roles: roles.map(r => r.name),
-        permissions: permissions.map(p => p.permission_key)
+        permissions: permissions.map(p => p.permission_key),
+        role_ids: userRoleIds.map(r => r.role_id),
+        permission_ids: userPermissionIds.map(p => p.permission_id),
+        inherited_permissions: inheritedPermissions.map(p => p.permission_id),
+        role_details: roles
       };
 
       return handleQuerySuccess(userWithDetails);
@@ -229,50 +258,85 @@ export class UserBackendService {
 
   static async update(id: number, data: UserUpdateRequest): Promise<QueryResult<UserType>> {
     try {
-      const updates: string[] = [];
-      const params: Record<string, any> = { id };
+      return await executeTransaction(async (transaction) => {
+        const updates: string[] = [];
+        const params: Record<string, any> = { id };
 
-      if (data.email !== undefined) {
-        updates.push('email = @email');
-        params.email = data.email;
-      }
-      if (data.name !== undefined) {
-        updates.push('name = @name');
-        params.name = data.name;
-      }
-      if (data.avatar !== undefined) {
-        updates.push('avatar = @avatar');
-        params.avatar = data.avatar;
-      }
-      if (data.active !== undefined) {
-        updates.push('active = @active');
-        params.active = data.active;
-      }
-      if (data.password !== undefined) {
-        updates.push('password = @password');
-        params.password = await hashPassword(data.password);
-      }
+        if (data.email !== undefined) {
+          updates.push('email = @email');
+          params.email = data.email;
+        }
+        if (data.name !== undefined) {
+          updates.push('name = @name');
+          params.name = data.name;
+        }
+        if (data.avatar !== undefined) {
+          updates.push('avatar = @avatar');
+          params.avatar = data.avatar;
+        }
+        if (data.active !== undefined) {
+          updates.push('active = @active');
+          params.active = data.active;
+        }
+        if (data.password !== undefined) {
+          updates.push('password = @password');
+          params.password = await hashPassword(data.password);
+        }
 
-      if (updates.length === 0) {
-        return { success: false, error: 'No hay campos para actualizar' };
-      }
+        // Update user basic info if there are updates
+        if (updates.length > 0) {
+          updates.push('updated_at = GETDATE()');
 
-      updates.push('updated_at = GETDATE()');
+          const query = `
+            UPDATE users 
+            SET ${updates.join(', ')}
+            WHERE id = @id AND active = 1
+          `;
 
-      const query = `
-        UPDATE users 
-        SET ${updates.join(', ')}
-        OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.avatar, INSERTED.active, INSERTED.created_at, INSERTED.updated_at
-        WHERE id = @id AND active = 1
-      `;
+          const request = transaction.request();
+          Object.entries(params).forEach(([key, value]) => {
+            request.input(key, value);
+          });
 
-      const result = await executeQuerySingle<UserType>(query, params);
+          await request.query(query);
+        }
 
-      if (!result) {
-        return { success: false, error: 'Usuario no encontrado' };
-      }
+        // Update roles if provided
+        if (data.roleIds !== undefined) {
+          // Delete existing roles
+          const deleteRolesRequest = transaction.request();
+          deleteRolesRequest.input('userId', id);
+          await deleteRolesRequest.query('DELETE FROM user_roles WHERE user_id = @userId');
 
-      return handleQuerySuccess({ ...result, roles: [], permissions: [] });
+          // Insert new roles
+          for (const roleId of data.roleIds) {
+            const insertRoleRequest = transaction.request();
+            insertRoleRequest.input('userId', id);
+            insertRoleRequest.input('roleId', roleId);
+            await insertRoleRequest.query('INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)');
+          }
+        }
+
+        // Update permissions if provided
+        if (data.permissionIds !== undefined) {
+          // Delete existing direct permissions
+          const deletePermissionsRequest = transaction.request();
+          deletePermissionsRequest.input('userId', id);
+          await deletePermissionsRequest.query('DELETE FROM user_permissions WHERE user_id = @userId');
+
+          // Insert new permissions
+          for (const permissionId of data.permissionIds) {
+            const insertPermissionRequest = transaction.request();
+            insertPermissionRequest.input('userId', id);
+            insertPermissionRequest.input('permissionId', permissionId);
+            await insertPermissionRequest.query('INSERT INTO user_permissions (user_id, permission_id) VALUES (@userId, @permissionId)');
+          }
+        }
+
+        // Get updated user with full details
+        const userResult = await this.getById(id);
+        return userResult.data;
+      });
     } catch (error) {
       return handleQueryError(error);
     }
