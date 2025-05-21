@@ -1,0 +1,1 @@
+export { GET, PUT, DELETE } from '@/app/(module)/admin/users/api/[id]/route';

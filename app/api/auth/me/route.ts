@@ -1,0 +1,1 @@
+export { GET } from '@/app/(module)/auth/api/me/route';

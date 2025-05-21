@@ -1,0 +1,1 @@
+export { GET, POST } from '@/app/(module)/admin/users/api/route';

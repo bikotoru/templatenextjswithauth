@@ -1,0 +1,1 @@
+export { GET } from '@/app/(module)/admin/permissions/api/route';
