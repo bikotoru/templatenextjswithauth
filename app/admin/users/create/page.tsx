@@ -26,7 +26,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ArrowLeft, Save, User, Shield, Key, Plus, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, User, Shield, Key, Plus, X, ChevronDown, ChevronRight, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import Link from 'next/link';
@@ -50,6 +50,10 @@ export default function CreateUserPage() {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedRolesForModal, setSelectedRolesForModal] = useState<Set<number>>(new Set());
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  
+  // Filters for permissions tab
+  const [permissionSearch, setPermissionSearch] = useState('');
+  const [showOnlySelectedPermissions, setShowOnlySelectedPermissions] = useState(false);
 
   useEffect(() => {
     fetchRolesAndPermissions();
@@ -126,14 +130,50 @@ export default function CreateUserPage() {
     setExpandedModules(newExpanded);
   };
 
-  // Group permissions by module
-  const permissionsByModule = availablePermissions.reduce((acc, permission) => {
-    if (!acc[permission.module]) {
-      acc[permission.module] = [];
+  // Filter and group permissions by module
+  const getFilteredPermissionsByModule = () => {
+    let filteredPermissions = availablePermissions;
+
+    // Apply search filter
+    if (permissionSearch.trim()) {
+      const searchLower = permissionSearch.toLowerCase();
+      filteredPermissions = filteredPermissions.filter(permission => 
+        permission.display_name.toLowerCase().includes(searchLower) ||
+        permission.permission_key.toLowerCase().includes(searchLower) ||
+        permission.module.toLowerCase().includes(searchLower)
+      );
     }
-    acc[permission.module].push(permission);
-    return acc;
-  }, {} as Record<string, typeof availablePermissions>);
+
+    // Group by module
+    const grouped = filteredPermissions.reduce((acc, permission) => {
+      if (!acc[permission.module]) {
+        acc[permission.module] = [];
+      }
+      acc[permission.module].push(permission);
+      return acc;
+    }, {} as Record<string, typeof availablePermissions>);
+
+    // If showing only selected permissions, filter out modules with no selected permissions
+    if (showOnlySelectedPermissions) {
+      const filteredGrouped: Record<string, typeof availablePermissions> = {};
+      
+      Object.entries(grouped).forEach(([module, modulePermissions]) => {
+        const moduleSelectedPermissions = modulePermissions.filter(permission => 
+          selectedPermissions.has(permission.id)
+        );
+        
+        if (moduleSelectedPermissions.length > 0) {
+          filteredGrouped[module] = showOnlySelectedPermissions ? moduleSelectedPermissions : modulePermissions;
+        }
+      });
+      
+      return filteredGrouped;
+    }
+
+    return grouped;
+  };
+
+  const permissionsByModule = getFilteredPermissionsByModule();
 
   // Get selected role details
   const selectedRoleDetails = availableRoles.filter(role => selectedRoles.has(role.id));
@@ -357,9 +397,68 @@ export default function CreateUserPage() {
               </TabsContent>
 
               <TabsContent value="permissions" className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Permisos directos adicionales que se asignarán al usuario (además de los heredados por roles).
-                </p>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Permisos directos adicionales que se asignarán al usuario (además de los heredados por roles).
+                  </p>
+                  
+                  {/* Permission Filters */}
+                  <div className="flex flex-col sm:flex-row gap-4 p-4 border rounded-lg bg-muted/20">
+                    <div className="flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar permisos o módulos..."
+                          value={permissionSearch}
+                          onChange={(e) => setPermissionSearch(e.target.value)}
+                          className="pl-8"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="show-only-selected"
+                        checked={showOnlySelectedPermissions}
+                        onCheckedChange={setShowOnlySelectedPermissions}
+                      />
+                      <Label htmlFor="show-only-selected" className="text-sm whitespace-nowrap">
+                        Solo permisos seleccionados
+                      </Label>
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results summary */}
+                {(permissionSearch || showOnlySelectedPermissions) && (
+                  <div className="text-sm text-muted-foreground">
+                    {Object.keys(permissionsByModule).length === 0 ? (
+                      <div className="text-center py-8">
+                        <p>No se encontraron permisos que coincidan con los filtros.</p>
+                        {(permissionSearch || showOnlySelectedPermissions) && (
+                          <Button 
+                            variant="link" 
+                            size="sm" 
+                            onClick={() => {
+                              setPermissionSearch('');
+                              setShowOnlySelectedPermissions(false);
+                            }}
+                            className="mt-2"
+                          >
+                            Limpiar filtros
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p>
+                        Mostrando {Object.keys(permissionsByModule).length} módulo(s) con{' '}
+                        {Object.values(permissionsByModule).reduce((total, perms) => total + perms.length, 0)} permiso(s)
+                        {permissionSearch && ` que coinciden con "${permissionSearch}"`}
+                        {showOnlySelectedPermissions && ' seleccionados'}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   {Object.entries(permissionsByModule).map(([module, modulePermissions]) => (
