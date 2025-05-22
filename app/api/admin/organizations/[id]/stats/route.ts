@@ -5,7 +5,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 // GET /api/admin/organizations/[id]/stats - Obtener estadísticas de una organización
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -25,7 +25,8 @@ export async function GET(
       );
     }
 
-    const organizationId = params.id;
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
 
     // 1. Estadísticas de usuarios
     const userStatsQuery = `

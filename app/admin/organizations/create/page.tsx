@@ -11,9 +11,18 @@ import OrganizationForm from '@/app/(module)/admin/organizations/components/orga
 export default function CreateOrganizationPage() {
   const router = useRouter();
   const { isSuperAdmin } = useAuth();
+  const isAdmin = isSuperAdmin();
 
-  // Solo Super Admin puede acceder
-  if (!isSuperAdmin()) {
+  const handleSuccess = () => {
+    router.push('/admin/organizations');
+  };
+
+  const handleCancel = () => {
+    router.back();
+  };
+
+  // Solo Super Admin puede acceder - verificación después de los hooks
+  if (!isAdmin) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
@@ -28,14 +37,6 @@ export default function CreateOrganizationPage() {
       </DashboardLayout>
     );
   }
-
-  const handleSuccess = () => {
-    router.push('/admin/organizations');
-  };
-
-  const handleCancel = () => {
-    router.back();
-  };
 
   return (
     <DashboardLayout>

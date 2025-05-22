@@ -23,23 +23,7 @@ export default function EditOrganizationPage() {
   const [loading, setLoading] = useState(true);
 
   const organizationId = params.id as string;
-
-  // Solo Super Admin puede acceder
-  if (!isSuperAdmin()) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <div className="text-center">
-            <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium">Acceso Restringido</h3>
-            <p className="text-muted-foreground">
-              Solo Super Admin puede editar organizaciones
-            </p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const isAdmin = isSuperAdmin();
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -68,6 +52,23 @@ export default function EditOrganizationPage() {
   const handleCancel = () => {
     router.back();
   };
+
+  // Solo Super Admin puede acceder - verificación después de los hooks
+  if (!isAdmin) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+          <div className="text-center">
+            <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium">Acceso Restringido</h3>
+            <p className="text-muted-foreground">
+              Solo Super Admin puede editar organizaciones
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (

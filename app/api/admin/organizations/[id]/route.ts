@@ -5,7 +5,7 @@ import { OrganizationBackendService } from '@/app/(module)/admin/organizations/s
 // GET /api/admin/organizations/[id]
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -19,7 +19,8 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Acceso denegado' }, { status: 403 });
     }
 
-    const result = await OrganizationBackendService.getById(params.id, user);
+    const resolvedParams = await params;
+    const result = await OrganizationBackendService.getById(resolvedParams.id, user);
     
     if (!result.success) {
       return NextResponse.json({
@@ -44,7 +45,7 @@ export async function GET(
 // PUT /api/admin/organizations/[id]
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -59,7 +60,8 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const result = await OrganizationBackendService.update(params.id, {
+    const resolvedParams2 = await params;
+    const result = await OrganizationBackendService.update(resolvedParams2.id, {
       ...body,
       updated_by_id: user.id,
     }, user);
@@ -87,7 +89,7 @@ export async function PUT(
 // DELETE /api/admin/organizations/[id]
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -101,7 +103,8 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Acceso denegado' }, { status: 403 });
     }
 
-    const result = await OrganizationBackendService.delete(params.id, user);
+    const resolvedParams3 = await params;
+    const result = await OrganizationBackendService.delete(resolvedParams3.id, user);
 
     if (!result.success) {
       return NextResponse.json({

@@ -5,7 +5,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 // GET /api/admin/organizations/[id]/users - Obtener usuarios de una organización
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -25,10 +25,11 @@ export async function GET(
       );
     }
 
-    const organizationId = params.id;
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
 
-    // Query para obtener usuarios de la organización con información de roles
-    const query = `
+    // Query simplificado primero para obtener usuarios
+    const usersQuery = `
       SELECT 
         u.id,
         u.email,
@@ -37,14 +38,7 @@ export async function GET(
         u.active,
         u.created_at,
         u.updated_at,
-        uo.joined_at,
-        STUFF((
-          SELECT ', ' + r.name
-          FROM user_role_assignments ura
-          JOIN roles r ON ura.role_id = r.id
-          WHERE ura.user_id = u.id AND ura.organization_id = @organizationId
-          FOR XML PATH('')
-        ), 1, 2, '') as roles_string
+        uo.joined_at
       FROM users u
       INNER JOIN user_organizations uo ON u.id = uo.user_id
       WHERE uo.organization_id = @organizationId 
@@ -52,30 +46,40 @@ export async function GET(
       ORDER BY uo.joined_at DESC
     `;
 
-    const result = await executeQuery<any>(query, { organizationId });
+    const users = await executeQuery<any>(usersQuery, { organizationId });
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Error al obtener usuarios de la organización' },
-        { status: 500 }
-      );
-    }
-
-    // Procesar los resultados para incluir roles como array
-    const users = result.data.map(user => ({
-      ...user,
-      roles: user.roles_string ? user.roles_string.split(', ') : []
-    }));
+    // Obtener roles para cada usuario por separado
+    const usersWithRoles = await Promise.all(
+      users.map(async (user) => {
+        const rolesQuery = `
+          SELECT r.name
+          FROM user_role_assignments ura
+          JOIN roles r ON ura.role_id = r.id
+          WHERE ura.user_id = @userId 
+            AND ura.organization_id = @organizationId
+        `;
+        
+        const roles = await executeQuery<{ name: string }>(rolesQuery, { 
+          userId: user.id, 
+          organizationId 
+        });
+        
+        return {
+          ...user,
+          roles: roles.map(r => r.name)
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,
-      data: users
+      data: usersWithRoles
     });
 
   } catch (error) {
     console.error('Error in GET /api/admin/organizations/[id]/users:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { error: error instanceof Error ? error.message : 'Error interno del servidor' },
       { status: 500 }
     );
   }

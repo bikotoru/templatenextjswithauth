@@ -5,7 +5,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 // DELETE /api/admin/organizations/[id]/users/[userId] - Remover usuario de organización
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; userId: string } }
+  { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -25,8 +25,9 @@ export async function DELETE(
       );
     }
 
-    const organizationId = params.id;
-    const userId = parseInt(params.userId);
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
+    const userId = parseInt(resolvedParams.userId);
 
     if (isNaN(userId)) {
       return NextResponse.json(
