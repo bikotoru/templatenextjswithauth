@@ -95,12 +95,14 @@ class AuthService {
         `SELECT DISTINCT p.name
          FROM permissions p
          WHERE p.organization_id = @organizationId
+         AND p.active = 1
          AND p.id IN (
            -- Permisos directos
            SELECT up.permission_id 
            FROM user_permission_assignments up 
            WHERE up.user_id = @userId 
            AND up.organization_id = @organizationId
+           AND up.active = 1
            
            UNION
            
@@ -110,6 +112,8 @@ class AuthService {
            INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
            WHERE ur.user_id = @userId 
            AND ur.organization_id = @organizationId
+           AND ur.active = 1
+           AND rp.active = 1
          )
          ORDER BY p.name`,
         { userId, organizationId }
@@ -362,8 +366,8 @@ class AuthService {
 
       // Actualizar último acceso de la sesión
       await executeQuery(
-        'UPDATE user_sessions SET expires_at = DATEADD(hour, 24, GETDATE()), last_activity = GETDATE() WHERE session_token = @token',
-        { token }
+        'UPDATE user_sessions SET expires_at = DATEADD(hour, 24, GETDATE()), last_activity = GETDATE(), updated_at = GETDATE(), updated_by_id = @userId WHERE session_token = @token',
+        { token, userId: session.user_id }
       );
 
       const [permissions, roles] = await Promise.all([
@@ -405,8 +409,8 @@ class AuthService {
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 horas
 
       await executeQuery(
-        `INSERT INTO user_sessions (user_id, organization_id, session_token, expires_at, created_at, last_activity)
-         VALUES (@userId, @organizationId, @token, @expiresAt, GETDATE(), GETDATE())`,
+        `INSERT INTO user_sessions (user_id, organization_id, session_token, expires_at, created_at, updated_at, created_by_id, updated_by_id, last_activity)
+         VALUES (@userId, @organizationId, @token, @expiresAt, GETDATE(), GETDATE(), @userId, @userId, GETDATE())`,
         { userId, organizationId, token, expiresAt }
       );
     } catch (error) {
