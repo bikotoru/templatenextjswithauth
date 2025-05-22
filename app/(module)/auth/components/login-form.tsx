@@ -234,37 +234,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           </CardContent>
         </Card>
 
-        {/* Demo Users */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Usuarios de Demostración</CardTitle>
-            <CardDescription>
-              Haz clic en cualquier usuario para llenar automáticamente el formulario. 
-              Los usuarios 🔥 son recomendados para testing rápido.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {demoUsers.map((user) => (
-                <Button
-                  key={user.email}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-left"
-                  onClick={() => fillDemoUser(user.email, user.password)}
-                  disabled={isLoading}
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="font-medium">{user.email}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {user.role} • {user.org} • Password: {user.password}
-                    </span>
-                  </div>
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+
       </div>
     </div>
   );
