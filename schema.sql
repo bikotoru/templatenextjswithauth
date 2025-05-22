@@ -28,6 +28,7 @@ CREATE TABLE organizations (
     logo NVARCHAR(500), -- URL del logo
     rut NVARCHAR(50), -- RUT/Tax ID (único por organización)
     active BIT DEFAULT 1,
+    expires_at DATETIME2 NULL, -- Fecha de expiración (NULL = nunca expira)
     
     -- Campos de auditoría obligatorios
     created_at DATETIME2 DEFAULT GETDATE(),
@@ -38,6 +39,7 @@ CREATE TABLE organizations (
     -- Índices
     INDEX IX_organizations_active (active),
     INDEX IX_organizations_rut (rut),
+    INDEX IX_organizations_expires_at (expires_at),
     INDEX IX_organizations_created_at (created_at),
     INDEX IX_organizations_updated_at (updated_at)
 );

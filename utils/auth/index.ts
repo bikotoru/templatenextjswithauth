@@ -305,6 +305,15 @@ class AuthService {
         return { success: false, error: 'Organización no válida' };
       }
 
+      // Verificar si la organización ha expirado (solo para usuarios no Super Admin)
+      const isSuperAdmin = await this.checkIfSuperAdmin(user.id);
+      if (!isSuperAdmin) {
+        const isExpired = await this.checkOrganizationExpired(selectedOrgId);
+        if (isExpired) {
+          return { success: false, error: 'La organización ha expirado. Contacte al administrador.' };
+        }
+      }
+
       // Obtener permisos y roles para la organización seleccionada
       const [permissions, roles] = await Promise.all([
         this.getUserPermissions(user.id, selectedOrgId),
@@ -425,6 +434,17 @@ class AuthService {
         { token, userId: sessionData.user_id }
       );
 
+      // Verificar si la organización ha expirado (solo para usuarios no Super Admin)
+      const isSuperAdmin = await this.checkIfSuperAdmin(user.id);
+      if (!isSuperAdmin && sessionData.organization_id) {
+        const isExpired = await this.checkOrganizationExpired(sessionData.organization_id);
+        if (isExpired) {
+          // Limpiar sesión si la organización ha expirado
+          await this.cleanupSession(token);
+          return null;
+        }
+      }
+
       const [permissions, roles] = await Promise.all([
         this.getUserPermissions(user.id, sessionData.organization_id),
         this.getUserRoles(user.id, sessionData.organization_id)
@@ -519,6 +539,39 @@ class AuthService {
       );
     } catch (error) {
       console.error('Error invalidating user sessions:', error);
+    }
+  }
+
+  // Verificar si una organización ha expirado
+  async checkOrganizationExpired(organizationId: string): Promise<boolean> {
+    try {
+      const org = await executeQuerySingle<{ expires_at: Date | null }>(
+        'SELECT expires_at FROM organizations WHERE id = @organizationId AND active = 1',
+        { organizationId }
+      );
+      
+      if (!org || !org.expires_at) {
+        return false; // NULL = nunca expira
+      }
+      
+      const now = new Date();
+      const expiresAt = new Date(org.expires_at);
+      
+      return now > expiresAt;
+    } catch (error) {
+      console.error('Error checking organization expiration:', error);
+      return false; // En caso de error, permitir acceso
+    }
+  }
+
+  // Verificar si un usuario es Super Admin
+  async checkIfSuperAdmin(userId: number): Promise<boolean> {
+    try {
+      const roles = await this.getUserRoles(userId);
+      return roles.includes('Super Admin');
+    } catch (error) {
+      console.error('Error checking super admin status:', error);
+      return false;
     }
   }
 }
