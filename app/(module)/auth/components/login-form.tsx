@@ -13,6 +13,13 @@ interface LoginFormProps {
   onSuccess?: () => void;
 }
 
+interface DemoUser {
+  email: string;
+  password: string;
+  role: string;
+  org: string;
+}
+
 export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,11 +60,20 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     }
   };
 
-  const demoUsers = [
-    { email: 'admin@admin.cl', password: '123', role: 'Super Admin' },
-    { email: 'manager@demo.cl', password: 'manager123', role: 'Manager' },
-    { email: 'user@demo.cl', password: 'user123', role: 'User' },
-    { email: 'viewer@demo.cl', password: 'viewer123', role: 'Viewer' },
+  const demoUsers: DemoUser[] = [
+    // 🔥 Usuarios demo fáciles (recomendados para testing)
+    { email: 'admin@demo.com', password: '123456', role: '🔥 Super Admin', org: 'TechCorp' },
+    { email: 'manager@demo.com', password: '123456', role: '🔥 HR Manager', org: 'Consultores' },
+    { email: 'user@demo.com', password: '123456', role: '🔥 HR Analyst', org: 'InnovaStart' },
+    { email: 'viewer@demo.com', password: '123456', role: '🔥 Viewer', org: 'TechCorp' },
+    
+    // 🎭 Usuario multi-tenant (mismo usuario, diferentes permisos por organización)
+    { email: 'multiuser@example.cl', password: '123456', role: '🎭 Multi-Tenant', org: 'Todas las organizaciones' },
+    
+    // 👤 Usuarios multi-tenant originales
+    { email: 'admin@techcorp.cl', password: '123456', role: '👤 Super Admin', org: 'TechCorp' },
+    { email: 'maria.garcia@consultores.cl', password: '123456', role: '👤 HR Manager', org: 'Consultores' },
+    { email: 'sofia@innovastart.cl', password: '123456', role: '👤 Super Admin', org: 'InnovaStart' },
   ];
 
   const fillDemoUser = (email: string, password: string) => {
@@ -148,7 +164,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           <CardHeader>
             <CardTitle className="text-lg">Usuarios de Demostración</CardTitle>
             <CardDescription>
-              Haz clic en cualquier usuario para llenar automáticamente el formulario
+              Haz clic en cualquier usuario para llenar automáticamente el formulario. 
+              Los usuarios 🔥 son recomendados para testing rápido.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -165,7 +182,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                   <div className="flex flex-col items-start">
                     <span className="font-medium">{user.email}</span>
                     <span className="text-xs text-muted-foreground">
-                      {user.role} - Password: {user.password}
+                      {user.role} • {user.org} • Password: {user.password}
                     </span>
                   </div>
                 </Button>

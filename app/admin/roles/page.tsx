@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RoleType } from '@/app/(module)/admin/roles/types';
 import DashboardLayout from '@/app/(module)/dashboard/components/dashboard-layout';
 import RoleList from '@/app/(module)/admin/roles/components/role-list';
 import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'sonner';
 
 export default function RolesPage() {
+  const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
 
   const handleRoleSelect = (role: RoleType) => {
@@ -15,18 +16,15 @@ export default function RolesPage() {
   };
 
   const handleRoleEdit = (role: RoleType) => {
-    // TODO: Implement role edit form
-    toast.info('Función de edición en desarrollo');
+    router.push(`/admin/roles/${role.id}/edit`);
   };
 
   const handleRoleCreate = () => {
-    // TODO: Implement role create form  
-    toast.info('Función de creación en desarrollo');
+    router.push('/admin/roles/create');
   };
 
   const handleManagePermissions = (role: RoleType) => {
-    // TODO: Implement permissions management
-    toast.info('Gestión de permisos en desarrollo');
+    router.push(`/admin/roles/${role.id}/edit?tab=permissions`);
   };
 
   return (

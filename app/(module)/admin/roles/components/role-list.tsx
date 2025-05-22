@@ -172,7 +172,7 @@ export default function RoleList({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="max-w-[200px] truncate" title={role.description}>
+                    <div className="truncate" title={role.description}>
                       {role.description || <span className="text-muted-foreground">Sin descripción</span>}
                     </div>
                   </TableCell>

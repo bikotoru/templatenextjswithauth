@@ -151,4 +151,19 @@ export class RoleFrontendService {
     
     return data.data;
   }
+
+  static async getUsers(): Promise<{ id: number; name: string; email: string; active: boolean }[]> {
+    const response = await fetch('/api/admin/users/simple');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Error al obtener usuarios');
+    }
+    
+    return data.data;
+  }
 }

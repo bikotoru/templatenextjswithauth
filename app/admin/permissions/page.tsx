@@ -183,7 +183,7 @@ export default function PermissionsPage() {
                         </code>
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-[200px] truncate" title={permission.description}>
+                        <div className="truncate" title={permission.description}>
                           {permission.description || <span className="text-muted-foreground">Sin descripción</span>}
                         </div>
                       </TableCell>

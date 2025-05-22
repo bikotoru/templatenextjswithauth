@@ -7,6 +7,8 @@ export interface RoleType {
   updated_at: Date;
   permissions: string[];
   userCount?: number;
+  permission_ids?: number[];
+  user_details?: { id: number; name: string; email: string; active: boolean }[];
 }
 
 export interface RoleCreateRequest {
@@ -20,6 +22,8 @@ export interface RoleUpdateRequest {
   name?: string;
   description?: string;
   active?: boolean;
+  permissionIds?: number[];
+  userIds?: number[];
 }
 
 export interface RolePermissionAssignRequest {

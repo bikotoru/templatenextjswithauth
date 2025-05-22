@@ -3,15 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import DashboardLayout from '@/app/(module)/dashboard/components/dashboard-layout';
-import { UserFrontendService } from '@/app/(module)/admin/users/services/frontend.service';
-import { UserUpdateRequest, UserType } from '@/app/(module)/admin/users/types';
+import { RoleFrontendService } from '@/app/(module)/admin/roles/services/frontend.service';
+import { RoleUpdateRequest, RoleType } from '@/app/(module)/admin/roles/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Dialog,
   DialogContent,
@@ -26,78 +28,97 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ArrowLeft, Save, User, Shield, Key, Loader2, Plus, X, ChevronDown, ChevronRight, Lock, Search, Filter } from 'lucide-react';
+import { ArrowLeft, Save, Shield, Users, Key, Loader2, Plus, X, ChevronDown, ChevronRight, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import Link from 'next/link';
 
-export default function EditUserPage() {
+export default function EditRolePage() {
   const router = useRouter();
   const params = useParams();
-  const userId = parseInt(params.id as string);
+  const roleId = parseInt(params.id as string);
+  
+  // Get tab from URL params
+  const [searchParams, setSearchParams] = useState(new URLSearchParams());
+  const [defaultTab, setDefaultTab] = useState('users');
   
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [user, setUser] = useState<UserType | null>(null);
-  const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string; description?: string }[]>([]);
+  const [role, setRole] = useState<RoleType | null>(null);
+  const [availableUsers, setAvailableUsers] = useState<{ id: number; name: string; email: string; active: boolean }[]>([]);
   const [availablePermissions, setAvailablePermissions] = useState<{ id: number; permission_key: string; display_name: string; module: string }[]>([]);
   
   const [formData, setFormData] = useState({
-    email: '',
     name: '',
-    avatar: '',
+    description: '',
     active: true,
   });
 
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [selectedRolesForModal, setSelectedRolesForModal] = useState<Set<number>>(new Set());
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUsersForModal, setSelectedUsersForModal] = useState<Set<number>>(new Set());
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   
   // Filters for permissions tab
   const [permissionSearch, setPermissionSearch] = useState('');
-  const [showOnlyUserPermissions, setShowOnlyUserPermissions] = useState(false);
+  const [showOnlyRolePermissions, setShowOnlyRolePermissions] = useState(false);
   
   // Temporary permission state for editing
   const [tempPermissions, setTempPermissions] = useState<Set<number>>(new Set());
   const [hasPermissionChanges, setHasPermissionChanges] = useState(false);
   const [showPermissionConfirmModal, setShowPermissionConfirmModal] = useState(false);
+  
+  // Temporary user state for editing
+  const [tempUsers, setTempUsers] = useState<Set<number>>(new Set());
+  const [hasUserChanges, setHasUserChanges] = useState(false);
+  const [showUserConfirmModal, setShowUserConfirmModal] = useState(false);
 
   useEffect(() => {
-    if (userId) {
-      fetchUserAndData();
+    // Check URL params for tab
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if (tab === 'permissions') {
+      setDefaultTab('permissions');
     }
-  }, [userId]);
+    setSearchParams(urlParams);
+  }, []);
 
-  const fetchUserAndData = async () => {
+  useEffect(() => {
+    if (roleId) {
+      fetchRoleAndData();
+    }
+  }, [roleId]);
+
+  const fetchRoleAndData = async () => {
     try {
       setInitialLoading(true);
-      const [userData, rolesData, permissionsData] = await Promise.all([
-        UserFrontendService.getById(userId),
-        UserFrontendService.getRoles(),
-        UserFrontendService.getPermissions()
+      const [roleData, usersData, permissionsData] = await Promise.all([
+        RoleFrontendService.getById(roleId),
+        RoleFrontendService.getUsers(),
+        RoleFrontendService.getPermissions()
       ]);
       
-      setUser(userData);
-      setAvailableRoles(Array.isArray(rolesData) ? rolesData : []);
+      setRole(roleData);
+      setAvailableUsers(Array.isArray(usersData) ? usersData : []);
       setAvailablePermissions(Array.isArray(permissionsData) ? permissionsData : []);
       
-      // Pre-populate form with user data
+      // Pre-populate form with role data
       setFormData({
-        email: userData.email,
-        name: userData.name,
-        avatar: userData.avatar || '',
-        active: userData.active,
+        name: roleData.name,
+        description: roleData.description || '',
+        active: roleData.active,
       });
 
-      // Set selected roles for modal
-      setSelectedRolesForModal(new Set(userData.role_ids || []));
+      // Set selected users for modal (current users assigned to this role)
+      const currentUserIds = roleData.user_details?.map(user => user.id) || [];
+      setSelectedUsersForModal(new Set(currentUserIds));
       
-      // Initialize temp permissions with current user permissions
-      setTempPermissions(new Set(userData.permission_ids || []));
+      // Initialize temp states
+      setTempPermissions(new Set(roleData.permission_ids || []));
+      setTempUsers(new Set(currentUserIds));
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      toast.error('Error al cargar datos del usuario');
-      router.push('/admin/users');
+      console.error('Error fetching role data:', error);
+      toast.error('Error al cargar datos del rol');
+      router.push('/admin/roles');
     } finally {
       setInitialLoading(false);
     }
@@ -108,61 +129,81 @@ export default function EditUserPage() {
     setLoading(true);
 
     try {
-      const updateData: UserUpdateRequest = {
-        email: formData.email,
+      const updateData: RoleUpdateRequest = {
         name: formData.name,
-        avatar: formData.avatar || undefined,
+        description: formData.description || undefined,
         active: formData.active,
       };
 
-      await UserFrontendService.update(userId, updateData);
-      toast.success('Usuario actualizado exitosamente');
-      // Refresh user data
-      await fetchUserAndData();
+      await RoleFrontendService.update(roleId, updateData);
+      toast.success('Rol actualizado exitosamente');
+      // Refresh role data
+      await fetchRoleAndData();
     } catch (error) {
-      console.error('Error updating user:', error);
-      toast.error('Error al actualizar usuario');
+      console.error('Error updating role:', error);
+      toast.error('Error al actualizar rol');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveRole = async (roleId: number) => {
-    if (!user) return;
+  const handleRemoveUser = (userId: number) => {
+    const newTempUsers = new Set(tempUsers);
+    newTempUsers.delete(userId);
+    setTempUsers(newTempUsers);
     
+    // Check if there are changes compared to original
+    const originalUsers = new Set(role?.user_details?.map(user => user.id) || []);
+    const hasChanges = 
+      newTempUsers.size !== originalUsers.size ||
+      [...newTempUsers].some(id => !originalUsers.has(id)) ||
+      [...originalUsers].some(id => !newTempUsers.has(id));
+    
+    setHasUserChanges(hasChanges);
+  };
+
+  const handleAddUsers = () => {
+    setTempUsers(new Set(selectedUsersForModal));
+    setShowUserModal(false);
+    
+    // Check if there are changes compared to original
+    const originalUsers = new Set(role?.user_details?.map(user => user.id) || []);
+    const hasChanges = 
+      selectedUsersForModal.size !== originalUsers.size ||
+      [...selectedUsersForModal].some(id => !originalUsers.has(id)) ||
+      [...originalUsers].some(id => !selectedUsersForModal.has(id));
+    
+    setHasUserChanges(hasChanges);
+  };
+
+  const handleSaveUsers = () => {
+    if (!role || !hasUserChanges) return;
+    setShowUserConfirmModal(true);
+  };
+
+  const confirmSaveUsers = async () => {
     try {
-      const newRoleIds = user.role_ids?.filter(id => id !== roleId) || [];
-      await UserFrontendService.update(userId, { roleIds: newRoleIds });
-      toast.success('Rol removido exitosamente');
-      await fetchUserAndData();
+      const newUserIds = Array.from(tempUsers);
+      await RoleFrontendService.update(roleId, { userIds: newUserIds });
+      toast.success('Usuarios actualizados exitosamente');
+      setHasUserChanges(false);
+      setShowUserConfirmModal(false);
+      await fetchRoleAndData();
     } catch (error) {
-      console.error('Error removing role:', error);
-      toast.error('Error al remover rol');
+      console.error('Error updating users:', error);
+      toast.error('Error al actualizar usuarios');
     }
   };
 
-  const handleAddRoles = async () => {
-    try {
-      const newRoleIds = Array.from(selectedRolesForModal);
-      await UserFrontendService.update(userId, { roleIds: newRoleIds });
-      toast.success('Roles actualizados exitosamente');
-      setShowRoleModal(false);
-      await fetchUserAndData();
-    } catch (error) {
-      console.error('Error updating roles:', error);
-      toast.error('Error al actualizar roles');
-    }
+  const discardUserChanges = () => {
+    if (!role) return;
+    const originalUserIds = role.user_details?.map(user => user.id) || [];
+    setTempUsers(new Set(originalUserIds));
+    setSelectedUsersForModal(new Set(originalUserIds));
+    setHasUserChanges(false);
   };
 
   const handlePermissionToggle = (permissionId: number, isChecked: boolean) => {
-    if (!user) return;
-
-    // Check if permission is inherited (cannot be toggled)
-    if (user.inherited_permissions?.includes(permissionId)) {
-      toast.error('No puedes modificar permisos heredados de roles');
-      return;
-    }
-
     const newTempPermissions = new Set(tempPermissions);
     if (isChecked) {
       newTempPermissions.add(permissionId);
@@ -173,7 +214,7 @@ export default function EditUserPage() {
     setTempPermissions(newTempPermissions);
     
     // Check if there are changes compared to original
-    const originalPermissions = new Set(user.permission_ids || []);
+    const originalPermissions = new Set(role?.permission_ids || []);
     const hasChanges = 
       newTempPermissions.size !== originalPermissions.size ||
       [...newTempPermissions].some(id => !originalPermissions.has(id)) ||
@@ -183,20 +224,18 @@ export default function EditUserPage() {
   };
 
   const handleSavePermissions = () => {
-    if (!user || !hasPermissionChanges) return;
+    if (!role || !hasPermissionChanges) return;
     setShowPermissionConfirmModal(true);
   };
 
   const confirmSavePermissions = async () => {
-    if (!user) return;
-
     try {
       const newPermissionIds = Array.from(tempPermissions);
-      await UserFrontendService.update(userId, { permissionIds: newPermissionIds });
+      await RoleFrontendService.update(roleId, { permissionIds: newPermissionIds });
       toast.success('Permisos actualizados exitosamente');
       setHasPermissionChanges(false);
       setShowPermissionConfirmModal(false);
-      await fetchUserAndData();
+      await fetchRoleAndData();
     } catch (error) {
       console.error('Error updating permissions:', error);
       toast.error('Error al actualizar permisos');
@@ -204,8 +243,8 @@ export default function EditUserPage() {
   };
 
   const discardPermissionChanges = () => {
-    if (!user) return;
-    setTempPermissions(new Set(user.permission_ids || []));
+    if (!role) return;
+    setTempPermissions(new Set(role.permission_ids || []));
     setHasPermissionChanges(false);
   };
 
@@ -217,6 +256,15 @@ export default function EditUserPage() {
       newExpanded.add(module);
     }
     setExpandedModules(newExpanded);
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   // Filter and group permissions by module
@@ -242,19 +290,17 @@ export default function EditUserPage() {
       return acc;
     }, {} as Record<string, typeof availablePermissions>);
 
-    // If showing only user permissions, filter out modules with no user permissions
-    if (showOnlyUserPermissions && user) {
+    // If showing only role permissions, filter out modules with no role permissions
+    if (showOnlyRolePermissions && role) {
       const filteredGrouped: Record<string, typeof availablePermissions> = {};
       
       Object.entries(grouped).forEach(([module, modulePermissions]) => {
-        const moduleUserPermissions = modulePermissions.filter(permission => {
-          const isInherited = user.inherited_permissions?.includes(permission.id) || false;
-          const isDirectlyAssigned = tempPermissions.has(permission.id) || false;
-          return isInherited || isDirectlyAssigned;
-        });
+        const moduleRolePermissions = modulePermissions.filter(permission => 
+          tempPermissions.has(permission.id) || false
+        );
         
-        if (moduleUserPermissions.length > 0) {
-          filteredGrouped[module] = showOnlyUserPermissions ? moduleUserPermissions : modulePermissions;
+        if (moduleRolePermissions.length > 0) {
+          filteredGrouped[module] = showOnlyRolePermissions ? moduleRolePermissions : modulePermissions;
         }
       });
       
@@ -272,21 +318,21 @@ export default function EditUserPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
           <div className="text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-            <p className="text-muted-foreground">Cargando datos del usuario...</p>
+            <p className="text-muted-foreground">Cargando datos del rol...</p>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
-  if (!user) {
+  if (!role) {
     return (
       <DashboardLayout>
         <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
           <div className="text-center space-y-4">
-            <p className="text-muted-foreground">Usuario no encontrado</p>
+            <p className="text-muted-foreground">Rol no encontrado</p>
             <Button asChild>
-              <Link href="/admin/users">Volver a Usuarios</Link>
+              <Link href="/admin/roles">Volver a Roles</Link>
             </Button>
           </div>
         </div>
@@ -300,83 +346,71 @@ export default function EditUserPage() {
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/users">
+            <Link href="/admin/roles">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Volver a Usuarios
+              Volver a Roles
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Editar Usuario</h1>
+            <h1 className="text-2xl font-bold">Editar Rol</h1>
             <p className="text-muted-foreground">
-              Actualizando información de: <span className="font-medium">{user.name}</span>
+              Actualizando información de: <span className="font-medium">{role.name}</span>
             </p>
           </div>
         </div>
 
-        {/* User Information */}
+        {/* Role Information */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Información Personal
+              <Shield className="h-5 w-5" />
+              Información del Rol
             </CardTitle>
             <CardDescription>
-              Datos básicos del usuario
+              Datos básicos del rol
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre completo *</Label>
+                  <Label htmlFor="name">Nombre del rol *</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ingresa el nombre completo"
+                    placeholder="Ingresa el nombre del rol"
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Correo electrónico *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="usuario@ejemplo.com"
-                    required
+                <div className="flex items-center space-x-2 pt-8">
+                  <Switch
+                    id="active"
+                    checked={formData.active}
+                    onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
                   />
+                  <Label htmlFor="active">Rol activo</Label>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="avatar">Avatar URL (opcional)</Label>
-                <Input
-                  id="avatar"
-                  value={formData.avatar}
-                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
-                  placeholder="https://ejemplo.com/avatar.jpg"
+                <Label htmlFor="description">Descripción (opcional)</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descripción del rol y sus responsabilidades"
+                  rows={3}
                 />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="active"
-                  checked={formData.active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
-                />
-                <Label htmlFor="active">Usuario activo</Label>
               </div>
               
-              {/* User Info */}
+              {/* Role Info */}
               <div className="pt-4 border-t">
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <p><span className="font-medium">ID:</span> {user.id}</p>
-                  <p><span className="font-medium">Creado:</span> {new Date(user.created_at).toLocaleDateString('es-ES')}</p>
-                  {user.last_login && (
-                    <p><span className="font-medium">Último login:</span> {new Date(user.last_login).toLocaleDateString('es-ES')}</p>
-                  )}
+                  <p><span className="font-medium">ID:</span> {role.id}</p>
+                  <p><span className="font-medium">Creado:</span> {new Date(role.created_at).toLocaleDateString('es-ES')}</p>
+                  <p><span className="font-medium">Usuarios asignados:</span> {role.user_details?.length || 0}</p>
+                  <p><span className="font-medium">Permisos asignados:</span> {role.permission_ids?.length || 0}</p>
                 </div>
               </div>
 
@@ -399,84 +433,107 @@ export default function EditUserPage() {
           </CardContent>
         </Card>
 
-        {/* Roles and Permissions Tabs */}
+        {/* Users and Permissions Tabs */}
         <Card>
           <CardHeader>
-            <CardTitle>Roles y Permisos</CardTitle>
+            <CardTitle>Usuarios y Permisos</CardTitle>
             <CardDescription>
-              Gestiona los roles y permisos del usuario
+              Gestiona los usuarios asignados a este rol y sus permisos
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="roles" className="w-full">
+            <Tabs defaultValue={defaultTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="roles" className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Roles
+                <TabsTrigger value="users" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Usuarios ({role.user_details?.length || 0})
                 </TabsTrigger>
                 <TabsTrigger value="permissions" className="flex items-center gap-2">
                   <Key className="h-4 w-4" />
-                  Permisos
+                  Permisos ({role.permission_ids?.length || 0})
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="roles" className="space-y-4">
+              <TabsContent value="users" className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Roles asignados al usuario
+                    Usuarios que tienen este rol asignado
                   </p>
-                  <Dialog open={showRoleModal} onOpenChange={setShowRoleModal}>
+                  {hasUserChanges && (
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={discardUserChanges}
+                      >
+                        Descartar Cambios
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={handleSaveUsers}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Guardar Usuarios
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
                     <DialogTrigger asChild>
                       <Button size="sm">
                         <Plus className="h-4 w-4 mr-2" />
-                        Agregar Roles
+                        Gestionar Usuarios
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Seleccionar Roles</DialogTitle>
+                        <DialogTitle>Asignar Usuarios</DialogTitle>
                         <DialogDescription>
-                          Selecciona los roles que tendrá este usuario
+                          Selecciona los usuarios que tendrán este rol
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="max-h-60 overflow-y-auto space-y-2">
-                          {availableRoles.map((role) => (
-                            <div key={role.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                          {availableUsers.map((user) => (
+                            <div key={user.id} className="flex items-start space-x-3 p-3 border rounded-lg">
                               <Checkbox
-                                id={`modal-role-${role.id}`}
-                                checked={selectedRolesForModal.has(role.id)}
+                                id={`modal-user-${user.id}`}
+                                checked={selectedUsersForModal.has(user.id)}
                                 onCheckedChange={(checked) => {
-                                  const newRoles = new Set(selectedRolesForModal);
+                                  const newUsers = new Set(selectedUsersForModal);
                                   if (checked) {
-                                    newRoles.add(role.id);
+                                    newUsers.add(user.id);
                                   } else {
-                                    newRoles.delete(role.id);
+                                    newUsers.delete(user.id);
                                   }
-                                  setSelectedRolesForModal(newRoles);
+                                  setSelectedUsersForModal(newUsers);
                                 }}
                               />
-                              <div className="flex-1 space-y-1">
-                                <Label 
-                                  htmlFor={`modal-role-${role.id}`} 
-                                  className="text-sm font-medium cursor-pointer"
-                                >
-                                  {role.name}
-                                </Label>
-                                {role.description && (
+                              <div className="flex items-center space-x-3 flex-1">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 space-y-1">
+                                  <Label 
+                                    htmlFor={`modal-user-${user.id}`} 
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {user.name}
+                                  </Label>
                                   <p className="text-xs text-muted-foreground">
-                                    {role.description}
+                                    {user.email}
                                   </p>
-                                )}
+                                </div>
                               </div>
                             </div>
                           ))}
                         </div>
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setShowRoleModal(false)}>
+                          <Button variant="outline" onClick={() => setShowUserModal(false)}>
                             Cancelar
                           </Button>
-                          <Button onClick={handleAddRoles}>
+                          <Button onClick={handleAddUsers}>
                             Aplicar Cambios
                           </Button>
                         </div>
@@ -486,29 +543,38 @@ export default function EditUserPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {user.role_details && user.role_details.length > 0 ? (
-                    user.role_details.map((role) => (
-                      <div key={role.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{role.name}</div>
-                          {role.description && (
-                            <div className="text-sm text-muted-foreground">{role.description}</div>
+                  {(() => {
+                    const tempUserDetails = availableUsers.filter(user => tempUsers.has(user.id));
+                    return tempUserDetails.length > 0 ? (
+                      tempUserDetails.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{user.name}</div>
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                          </div>
+                          {!user.active && (
+                            <Badge variant="secondary">Inactivo</Badge>
                           )}
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRemoveRole(role.id)}
+                          onClick={() => handleRemoveUser(user.id)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No hay roles asignados
-                    </div>
-                  )}
+                      <div className="text-center py-8 text-muted-foreground">
+                        No hay usuarios asignados a este rol
+                      </div>
+                    );
+                  })()}
                 </div>
               </TabsContent>
 
@@ -516,7 +582,7 @@ export default function EditUserPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      Permisos agrupados por módulo. Los permisos con <Lock className="h-3 w-3 inline" /> son heredados de roles y no se pueden modificar.
+                      Permisos que otorga este rol a los usuarios asignados.
                     </p>
                     {hasPermissionChanges && (
                       <div className="flex gap-2">
@@ -553,12 +619,12 @@ export default function EditUserPage() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <Switch
-                        id="show-only-user"
-                        checked={showOnlyUserPermissions}
-                        onCheckedChange={setShowOnlyUserPermissions}
+                        id="show-only-role"
+                        checked={showOnlyRolePermissions}
+                        onCheckedChange={setShowOnlyRolePermissions}
                       />
-                      <Label htmlFor="show-only-user" className="text-sm whitespace-nowrap">
-                        Solo permisos del usuario
+                      <Label htmlFor="show-only-role" className="text-sm whitespace-nowrap">
+                        Solo permisos del rol
                       </Label>
                       <Filter className="h-4 w-4 text-muted-foreground" />
                     </div>
@@ -566,18 +632,18 @@ export default function EditUserPage() {
                 </div>
 
                 {/* Results summary */}
-                {(permissionSearch || showOnlyUserPermissions) && (
+                {(permissionSearch || showOnlyRolePermissions) && (
                   <div className="text-sm text-muted-foreground">
                     {Object.keys(permissionsByModule).length === 0 ? (
                       <div className="text-center py-8">
                         <p>No se encontraron permisos que coincidan con los filtros.</p>
-                        {(permissionSearch || showOnlyUserPermissions) && (
+                        {(permissionSearch || showOnlyRolePermissions) && (
                           <Button 
                             variant="link" 
                             size="sm" 
                             onClick={() => {
                               setPermissionSearch('');
-                              setShowOnlyUserPermissions(false);
+                              setShowOnlyRolePermissions(false);
                             }}
                             className="mt-2"
                           >
@@ -590,7 +656,7 @@ export default function EditUserPage() {
                         Mostrando {Object.keys(permissionsByModule).length} módulo(s) con{' '}
                         {Object.values(permissionsByModule).reduce((total, perms) => total + perms.length, 0)} permiso(s)
                         {permissionSearch && ` que coinciden con "${permissionSearch}"`}
-                        {showOnlyUserPermissions && ' del usuario'}
+                        {showOnlyRolePermissions && ' del rol'}
                       </p>
                     )}
                   </div>
@@ -622,20 +688,13 @@ export default function EditUserPage() {
                       <CollapsibleContent className="mt-2 ml-6">
                         <div className="space-y-2">
                           {modulePermissions.map((permission) => {
-                            const isInherited = user.inherited_permissions?.includes(permission.id) || false;
-                            const isDirectlyAssigned = tempPermissions.has(permission.id) || false;
-                            
-                            // For inherited permissions, show as checked but disabled
-                            // For direct permissions, show based on temp state and allow toggle
-                            const switchChecked = isInherited || isDirectlyAssigned;
-                            const switchDisabled = isInherited;
+                            const hasPermission = tempPermissions.has(permission.id) || false;
 
                             return (
                               <div key={permission.id} className="flex items-center justify-between p-2 border rounded">
                                 <div className="flex items-center space-x-3">
                                   <Switch
-                                    checked={switchChecked}
-                                    disabled={switchDisabled}
+                                    checked={hasPermission}
                                     onCheckedChange={(checked) => 
                                       handlePermissionToggle(permission.id, checked)
                                     }
@@ -645,9 +704,6 @@ export default function EditUserPage() {
                                       <span className="text-sm font-medium">
                                         {permission.display_name}
                                       </span>
-                                      {isInherited && (
-                                        <Lock className="h-3 w-3 text-muted-foreground" />
-                                      )}
                                     </div>
                                     <p className="text-xs text-muted-foreground font-mono">
                                       {permission.permission_key}
@@ -668,26 +724,115 @@ export default function EditUserPage() {
         </Card>
       </div>
 
+      {/* User Confirmation Modal */}
+      <Dialog open={showUserConfirmModal} onOpenChange={setShowUserConfirmModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Cambios de Usuarios</DialogTitle>
+            <DialogDescription>
+              Revisa los cambios que se aplicarán a los usuarios del rol
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {(() => {
+              if (!role) return null;
+              
+              const originalUsers = new Set(role.user_details?.map(user => user.id) || []);
+              const newUsers = tempUsers;
+              
+              const toAdd = [...newUsers].filter(id => !originalUsers.has(id));
+              const toRemove = [...originalUsers].filter(id => !newUsers.has(id));
+              
+              const usersToAdd = availableUsers.filter(u => toAdd.includes(u.id));
+              const usersToRemove = availableUsers.filter(u => toRemove.includes(u.id));
+              
+              return (
+                <div className="space-y-4">
+                  {usersToAdd.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-green-700 mb-2">
+                        ✅ Usuarios a agregar ({usersToAdd.length}):
+                      </h4>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {usersToAdd.map(user => (
+                          <div key={user.id} className="text-sm p-2 bg-green-50 rounded flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs">{getInitials(user.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-xs text-muted-foreground">{user.email}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {usersToRemove.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-red-700 mb-2">
+                        ❌ Usuarios a eliminar ({usersToRemove.length}):
+                      </h4>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {usersToRemove.map(user => (
+                          <div key={user.id} className="text-sm p-2 bg-red-50 rounded flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs">{getInitials(user.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-xs text-muted-foreground">{user.email}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {toAdd.length === 0 && toRemove.length === 0 && (
+                    <div className="text-center py-6">
+                      <p className="text-muted-foreground mb-2">No hay cambios para aplicar</p>
+                      <p className="text-xs text-muted-foreground">
+                        Los usuarios del rol permanecerán igual
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowUserConfirmModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmSaveUsers}>
+                Confirmar Cambios
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Permission Confirmation Modal */}
       <Dialog open={showPermissionConfirmModal} onOpenChange={setShowPermissionConfirmModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Confirmar Cambios de Permisos</DialogTitle>
             <DialogDescription>
-              Revisa los cambios que se aplicarán a los permisos del usuario
+              Revisa los cambios que se aplicarán a los permisos del rol
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {(() => {
-              if (!user) return null;
+              if (!role) return null;
               
-              // Get the original direct permissions (not inherited ones)
-              const originalDirectPermissions = new Set(user.permission_ids || []);
-              const newDirectPermissions = tempPermissions;
+              // Get the original role permissions
+              const originalRolePermissions = new Set(role.permission_ids || []);
+              const newRolePermissions = tempPermissions;
               
-              // Only compare direct permissions that the user actually has assigned
-              const toAdd = [...newDirectPermissions].filter(id => !originalDirectPermissions.has(id));
-              const toRemove = [...originalDirectPermissions].filter(id => !newDirectPermissions.has(id));
+              // Compare only the role's direct permissions
+              const toAdd = [...newRolePermissions].filter(id => !originalRolePermissions.has(id));
+              const toRemove = [...originalRolePermissions].filter(id => !newRolePermissions.has(id));
               
               const permissionsToAdd = availablePermissions.filter(p => toAdd.includes(p.id));
               const permissionsToRemove = availablePermissions.filter(p => toRemove.includes(p.id));
@@ -730,7 +875,7 @@ export default function EditUserPage() {
                     <div className="text-center py-6">
                       <p className="text-muted-foreground mb-2">No hay cambios para aplicar</p>
                       <p className="text-xs text-muted-foreground">
-                        Los permisos directos del usuario permanecerán igual
+                        Los permisos del rol permanecerán igual
                       </p>
                     </div>
                   )}

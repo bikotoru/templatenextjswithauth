@@ -66,48 +66,74 @@ class AuthService {
     }
   }
 
-  // Obtener permisos de usuario (directos + por roles)
-  async getUserPermissions(userId: number): Promise<string[]> {
+  // Obtener permisos de usuario para una organización específica (directos + por roles)
+  async getUserPermissions(userId: number, organizationId?: string): Promise<string[]> {
     try {
-      const permissions = await executeQuery<{ permission_key: string }>(
-        `SELECT DISTINCT p.permission_key
+      // Si no se especifica organización, obtener permisos de la primera organización del usuario
+      if (!organizationId) {
+        const firstOrg = await executeQuerySingle<{ organization_id: string }>(
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          { userId }
+        );
+        if (!firstOrg) return [];
+        organizationId = firstOrg.organization_id;
+      }
+
+      const permissions = await executeQuery<{ name: string }>(
+        `SELECT DISTINCT p.name
          FROM permissions p
-         WHERE p.active = 1 
+         WHERE p.organization_id = @organizationId
          AND p.id IN (
            -- Permisos directos
            SELECT up.permission_id 
-           FROM user_permissions up 
-           WHERE up.user_id = @userId
+           FROM user_permission_assignments up 
+           WHERE up.user_id = @userId 
+           AND up.organization_id = @organizationId
+           AND up.active = 1
            
            UNION
            
            -- Permisos por roles
            SELECT rp.permission_id 
-           FROM role_permissions rp
-           INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-           WHERE ur.user_id = @userId
+           FROM role_permission_assignments rp
+           INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
+           WHERE ur.user_id = @userId 
+           AND ur.organization_id = @organizationId
+           AND ur.active = 1
          )
-         ORDER BY p.permission_key`,
-        { userId }
+         ORDER BY p.name`,
+        { userId, organizationId }
       );
 
-      return permissions.map(p => p.permission_key);
+      return permissions.map(p => p.name);
     } catch (error) {
       console.error('Error getting user permissions:', error);
       return [];
     }
   }
 
-  // Obtener roles de usuario
-  async getUserRoles(userId: number): Promise<string[]> {
+  // Obtener roles de usuario para una organización específica
+  async getUserRoles(userId: number, organizationId?: string): Promise<string[]> {
     try {
+      // Si no se especifica organización, obtener roles de la primera organización del usuario
+      if (!organizationId) {
+        const firstOrg = await executeQuerySingle<{ organization_id: string }>(
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          { userId }
+        );
+        if (!firstOrg) return [];
+        organizationId = firstOrg.organization_id;
+      }
+
       const roles = await executeQuery<{ name: string }>(
         `SELECT r.name
          FROM roles r
-         INNER JOIN user_roles ur ON r.id = ur.role_id
-         WHERE ur.user_id = @userId AND r.active = 1
+         INNER JOIN user_role_assignments ur ON r.id = ur.role_id
+         WHERE ur.user_id = @userId 
+         AND ur.organization_id = @organizationId
+         AND ur.active = 1
          ORDER BY r.name`,
-        { userId }
+        { userId, organizationId }
       );
 
       return roles.map(r => r.name);
@@ -126,12 +152,12 @@ class AuthService {
       const user = await executeQuerySingle<{
         id: number;
         email: string;
-        password: string;
+        password_hash: string;
         name: string;
         avatar?: string;
         active: boolean;
       }>(
-        'SELECT id, email, password, name, avatar, active FROM users WHERE email = @email',
+        'SELECT id, email, password_hash, name, avatar, active FROM users WHERE email = @email',
         { email }
       );
 
@@ -139,13 +165,8 @@ class AuthService {
         return { success: false, error: 'Usuario no encontrado o inactivo' };
       }
 
-      // Verificar password (manejar caso especial del admin)
-      let passwordValid = false;
-      if (user.email === 'admin@admin.cl' && user.password === '123') {
-        passwordValid = password === '123';
-      } else {
-        passwordValid = await this.verifyPassword(password, user.password);
-      }
+      // Verificar password usando bcrypt
+      const passwordValid = await this.verifyPassword(password, user.password_hash);
 
       if (!passwordValid) {
         return { success: false, error: 'Credenciales inválidas' };
@@ -171,12 +192,18 @@ class AuthService {
 
       // Actualizar último login
       await executeQuery(
-        'UPDATE users SET last_login = GETDATE() WHERE id = @id',
+        'UPDATE users SET updated_at = GETDATE() WHERE id = @id',
         { id: user.id }
       );
 
-      // Opcional: Guardar sesión en BD
-      await this.saveSession(user.id, token);
+      // Opcional: Guardar sesión en BD (usar primera organización por defecto)
+      const firstOrg = await executeQuerySingle<{ organization_id: string }>(
+        'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+        { userId: user.id }
+      );
+      if (firstOrg) {
+        await this.saveSession(user.id, token, firstOrg.organization_id);
+      }
 
       return {
         success: true,
@@ -190,15 +217,27 @@ class AuthService {
     }
   }
 
-  // Verificar si usuario tiene un permiso específico
-  async hasPermission(userId: number, permission: string): Promise<boolean> {
+  // Verificar si usuario tiene un permiso específico en una organización
+  async hasPermission(userId: number, permission: string, organizationId?: string): Promise<boolean> {
     try {
+      // Si no se especifica organización, usar la primera organización del usuario
+      if (!organizationId) {
+        const firstOrg = await executeQuerySingle<{ organization_id: string }>(
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          { userId }
+        );
+        if (!firstOrg) return false;
+        organizationId = firstOrg.organization_id;
+      }
+
       const result = await executeQuerySingle<{ has_permission: number }>(
-        'EXEC sp_check_user_permission @user_id, @permission_key',
-        { user_id: userId, permission_key: permission }
+        'EXEC sp_get_user_permissions @user_id, @organization_id',
+        { user_id: userId, organization_id: organizationId }
       );
 
-      return (result?.has_permission ?? 0) > 0;
+      // Buscar el permiso específico en los resultados
+      const permissions = await this.getUserPermissions(userId, organizationId);
+      return permissions.includes(permission);
     } catch (error) {
       console.error('Error checking permission:', error);
       return false;
@@ -214,9 +253,10 @@ class AuthService {
       // Verificar si el token existe en la base de datos y no ha expirado
       const sessionData = await executeQuerySingle<{
         user_id: number;
+        organization_id: string;
         expires_at: Date;
       }>(
-        'SELECT user_id, expires_at FROM user_sessions WHERE session_token = @token AND expires_at > GETDATE()',
+        'SELECT user_id, organization_id, expires_at FROM user_sessions WHERE session_token = @token AND expires_at > GETDATE()',
         { token }
       );
 
@@ -252,13 +292,13 @@ class AuthService {
 
       // Actualizar último acceso de la sesión
       await executeQuery(
-        'UPDATE user_sessions SET expires_at = DATEADD(hour, 24, GETDATE()) WHERE session_token = @token',
+        'UPDATE user_sessions SET expires_at = DATEADD(hour, 24, GETDATE()), last_activity = GETDATE() WHERE session_token = @token',
         { token }
       );
 
       const [permissions, roles] = await Promise.all([
-        this.getUserPermissions(user.id),
-        this.getUserRoles(user.id)
+        this.getUserPermissions(user.id, sessionData.organization_id),
+        this.getUserRoles(user.id, sessionData.organization_id)
       ]);
 
       return {
@@ -289,15 +329,15 @@ class AuthService {
   }
 
   // Guardar sesión en BD (opcional)
-  private async saveSession(userId: number, token: string): Promise<void> {
+  private async saveSession(userId: number, token: string, organizationId: string): Promise<void> {
     try {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 horas
 
       await executeQuery(
-        `INSERT INTO user_sessions (user_id, session_token, expires_at)
-         VALUES (@userId, @token, @expiresAt)`,
-        { userId, token, expiresAt }
+        `INSERT INTO user_sessions (user_id, organization_id, session_token, expires_at, created_at, last_activity)
+         VALUES (@userId, @organizationId, @token, @expiresAt, GETDATE(), GETDATE())`,
+        { userId, organizationId, token, expiresAt }
       );
     } catch (error) {
       console.error('Error saving session:', error);

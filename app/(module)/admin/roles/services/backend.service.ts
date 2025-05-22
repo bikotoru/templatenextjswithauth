@@ -133,9 +133,9 @@ export class RoleBackendService {
         return { success: false, error: 'Rol no encontrado' };
       }
 
-      // Obtener permisos del rol
-      const permissions = await executeQuery<{ permission_key: string }>(
-        `SELECT p.permission_key
+      // Obtener permisos del rol con IDs
+      const permissions = await executeQuery<{ id: number; permission_key: string }>(
+        `SELECT p.id, p.permission_key
          FROM permissions p
          INNER JOIN role_permissions rp ON p.id = rp.permission_id
          WHERE rp.role_id = @roleId AND p.active = 1
@@ -143,12 +143,24 @@ export class RoleBackendService {
         { roleId: id }
       );
 
-      const roleWithPermissions: RoleType = {
+      // Obtener usuarios del rol
+      const users = await executeQuery<{ id: number; name: string; email: string; active: boolean }>(
+        `SELECT u.id, u.name, u.email, u.active
+         FROM users u
+         INNER JOIN user_roles ur ON u.id = ur.user_id
+         WHERE ur.role_id = @roleId AND u.active = 1
+         ORDER BY u.name`,
+        { roleId: id }
+      );
+
+      const roleWithDetails: RoleType = {
         ...role,
-        permissions: permissions.map(p => p.permission_key)
+        permissions: permissions.map(p => p.permission_key),
+        permission_ids: permissions.map(p => p.id),
+        user_details: users
       };
 
-      return handleQuerySuccess(roleWithPermissions);
+      return handleQuerySuccess(roleWithDetails);
     } catch (error) {
       return handleQueryError(error);
     }
@@ -195,42 +207,77 @@ export class RoleBackendService {
 
   static async update(id: number, data: RoleUpdateRequest): Promise<QueryResult<RoleType>> {
     try {
-      const updates: string[] = [];
-      const params: Record<string, any> = { id };
+      return await executeTransaction(async (transaction) => {
+        const updates: string[] = [];
+        const params: Record<string, any> = { id };
 
-      if (data.name !== undefined) {
-        updates.push('name = @name');
-        params.name = data.name;
-      }
-      if (data.description !== undefined) {
-        updates.push('description = @description');
-        params.description = data.description;
-      }
-      if (data.active !== undefined) {
-        updates.push('active = @active');
-        params.active = data.active;
-      }
+        if (data.name !== undefined) {
+          updates.push('name = @name');
+          params.name = data.name;
+        }
+        if (data.description !== undefined) {
+          updates.push('description = @description');
+          params.description = data.description;
+        }
+        if (data.active !== undefined) {
+          updates.push('active = @active');
+          params.active = data.active;
+        }
 
-      if (updates.length === 0) {
-        return { success: false, error: 'No hay campos para actualizar' };
-      }
+        // Update role basic info if there are updates
+        if (updates.length > 0) {
+          updates.push('updated_at = GETDATE()');
 
-      updates.push('updated_at = GETDATE()');
+          const query = `
+            UPDATE roles 
+            SET ${updates.join(', ')}
+            WHERE id = @id AND active = 1
+          `;
 
-      const query = `
-        UPDATE roles 
-        SET ${updates.join(', ')}
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.description, INSERTED.active, INSERTED.created_at, INSERTED.updated_at
-        WHERE id = @id AND active = 1
-      `;
+          const request = transaction.request();
+          Object.entries(params).forEach(([key, value]) => {
+            request.input(key, value);
+          });
 
-      const result = await executeQuerySingle<RoleType>(query, params);
+          await request.query(query);
+        }
 
-      if (!result) {
-        return { success: false, error: 'Rol no encontrado' };
-      }
+        // Update permissions if provided
+        if (data.permissionIds !== undefined) {
+          // Delete existing permissions
+          const deletePermissionsRequest = transaction.request();
+          deletePermissionsRequest.input('roleId', id);
+          await deletePermissionsRequest.query('DELETE FROM role_permissions WHERE role_id = @roleId');
 
-      return handleQuerySuccess({ ...result, permissions: [], userCount: 0 });
+          // Insert new permissions
+          for (const permissionId of data.permissionIds) {
+            const insertPermissionRequest = transaction.request();
+            insertPermissionRequest.input('roleId', id);
+            insertPermissionRequest.input('permissionId', permissionId);
+            await insertPermissionRequest.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permissionId)');
+          }
+        }
+
+        // Update users if provided
+        if (data.userIds !== undefined) {
+          // Delete existing user assignments
+          const deleteUsersRequest = transaction.request();
+          deleteUsersRequest.input('roleId', id);
+          await deleteUsersRequest.query('DELETE FROM user_roles WHERE role_id = @roleId');
+
+          // Insert new user assignments
+          for (const userId of data.userIds) {
+            const insertUserRequest = transaction.request();
+            insertUserRequest.input('roleId', id);
+            insertUserRequest.input('userId', userId);
+            await insertUserRequest.query('INSERT INTO user_roles (role_id, user_id) VALUES (@roleId, @userId)');
+          }
+        }
+
+        // Get updated role with full details
+        const roleResult = await this.getById(id);
+        return roleResult.data;
+      });
     } catch (error) {
       return handleQueryError(error);
     }
