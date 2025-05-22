@@ -48,7 +48,7 @@ export default function OrganizationUsers({ organizationId, organizationName }: 
       }
       
       const data = await response.json();
-      setUsers(data.users || []);
+      setUsers(data.data || []);
     } catch (error) {
       console.error('Error fetching organization users:', error);
       toast.error('Error al cargar los usuarios de la organización');
