@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +46,10 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.user) {
+        // Actualizar el contexto de autenticación con los datos del usuario
+        login(data.user);
+        
         if (onSuccess) {
           onSuccess();
         } else {

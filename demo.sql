@@ -51,7 +51,7 @@ DECLARE @org3_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE na
 -- Crear usuarios de ejemplo (todos con password: 123456)
 -- Hash bcrypt para '123456': $2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq
 INSERT INTO users (name, email, password_hash, active, created_at, updated_at) VALUES
--- Usuarios con credenciales fáciles de recordar
+-- Usuarios demo fáciles (recomendados para testing)
 ('Demo Admin', 'admin@demo.com', '$2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq', 1, GETDATE(), GETDATE()),
 ('Demo Manager', 'manager@demo.com', '$2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq', 1, GETDATE(), GETDATE()),
 ('Demo User', 'user@demo.com', '$2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq', 1, GETDATE(), GETDATE()),
@@ -102,26 +102,29 @@ DECLARE @perm_ids TABLE (name NVARCHAR(100), org_id UNIQUEIDENTIFIER, perm_id IN
 
 -- Insertar permisos para cada organización
 WITH permission_names AS (
-    SELECT 'users.view' as name, 'Ver usuarios' as description UNION ALL
-    SELECT 'users.create', 'Crear usuarios' UNION ALL
-    SELECT 'users.edit', 'Editar usuarios' UNION ALL
-    SELECT 'users.delete', 'Eliminar usuarios' UNION ALL
-    SELECT 'roles.view', 'Ver roles' UNION ALL
-    SELECT 'roles.create', 'Crear roles' UNION ALL
-    SELECT 'roles.edit', 'Editar roles' UNION ALL
-    SELECT 'roles.delete', 'Eliminar roles' UNION ALL
-    SELECT 'permissions.view', 'Ver permisos' UNION ALL
-    SELECT 'permissions.assign', 'Asignar permisos' UNION ALL
-    SELECT 'cv.view', 'Ver CVs' UNION ALL
-    SELECT 'cv.upload', 'Subir CVs' UNION ALL
-    SELECT 'cv.process', 'Procesar CVs' UNION ALL
-    SELECT 'cv.download', 'Descargar CVs' UNION ALL
-    SELECT 'cv.delete', 'Eliminar CVs' UNION ALL
-    SELECT 'reports.view', 'Ver reportes' UNION ALL
-    SELECT 'reports.export', 'Exportar reportes' UNION ALL
-    SELECT 'settings.view', 'Ver configuración' UNION ALL
-    SELECT 'settings.edit', 'Editar configuración' UNION ALL
-    SELECT 'audit.view', 'Ver auditoría'
+    SELECT 'dashboard:view' as name, 'Ver dashboard' as description UNION ALL
+    SELECT 'users:view', 'Ver usuarios' UNION ALL
+    SELECT 'users:create', 'Crear usuarios' UNION ALL
+    SELECT 'users:edit', 'Editar usuarios' UNION ALL
+    SELECT 'users:delete', 'Eliminar usuarios' UNION ALL
+    SELECT 'roles:view', 'Ver roles' UNION ALL
+    SELECT 'roles:create', 'Crear roles' UNION ALL
+    SELECT 'roles:edit', 'Editar roles' UNION ALL
+    SELECT 'roles:delete', 'Eliminar roles' UNION ALL
+    SELECT 'permissions:view', 'Ver permisos' UNION ALL
+    SELECT 'permissions:assign', 'Asignar permisos' UNION ALL
+    SELECT 'admin:access', 'Acceso a administración' UNION ALL
+    SELECT 'cv:view', 'Ver CVs' UNION ALL
+    SELECT 'cv:upload', 'Subir CVs' UNION ALL
+    SELECT 'cv:process', 'Procesar CVs' UNION ALL
+    SELECT 'cv:download', 'Descargar CVs' UNION ALL
+    SELECT 'cv:delete', 'Eliminar CVs' UNION ALL
+    SELECT 'cv:chat', 'Chat con CVs' UNION ALL
+    SELECT 'reports:view', 'Ver reportes' UNION ALL
+    SELECT 'reports:export', 'Exportar reportes' UNION ALL
+    SELECT 'settings:view', 'Ver configuración' UNION ALL
+    SELECT 'settings:edit', 'Editar configuración' UNION ALL
+    SELECT 'audit:view', 'Ver auditoría'
 ),
 orgs AS (
     SELECT @org1_id as org_id UNION ALL
@@ -141,7 +144,7 @@ SELECT
 FROM permission_names p
 CROSS JOIN orgs o;
 
-PRINT '✓ 20 permisos creados para cada una de las 3 organizaciones (60 permisos totales)';
+PRINT '✓ 23 permisos creados para cada una de las 3 organizaciones (69 permisos totales)';
 GO
 
 -- ============================================================================
@@ -221,7 +224,7 @@ SELECT r.role_id, p.perm_id, r.org_id, GETDATE(), @admin_id
 FROM @role_ids r
 JOIN @perm_ids p ON r.org_id = p.org_id
 WHERE r.name = 'HR Manager' 
-AND p.name NOT IN ('settings.edit', 'users.delete', 'roles.delete');
+AND p.name NOT IN ('settings:edit', 'users:delete', 'roles:delete');
 
 -- HR Analyst: Ver y operaciones básicas de CV
 INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, created_at, created_by_id)
@@ -229,7 +232,7 @@ SELECT r.role_id, p.perm_id, r.org_id, GETDATE(), @admin_id
 FROM @role_ids r
 JOIN @perm_ids p ON r.org_id = p.org_id
 WHERE r.name = 'HR Analyst' 
-AND p.name IN ('users.view', 'cv.view', 'cv.upload', 'cv.process', 'cv.download', 'reports.view');
+AND p.name IN ('dashboard:view', 'users:view', 'cv:view', 'cv:upload', 'cv:process', 'cv:download', 'reports:view');
 
 -- Recruiter: Permisos enfocados en CVs
 INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, created_at, created_by_id)
@@ -237,7 +240,7 @@ SELECT r.role_id, p.perm_id, r.org_id, GETDATE(), @admin_id
 FROM @role_ids r
 JOIN @perm_ids p ON r.org_id = p.org_id
 WHERE r.name = 'Recruiter' 
-AND p.name IN ('cv.view', 'cv.upload', 'cv.process', 'cv.download', 'reports.view');
+AND p.name IN ('dashboard:view', 'cv:view', 'cv:upload', 'cv:process', 'cv:download', 'reports:view');
 
 -- Viewer: Solo permisos de visualización
 INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, created_at, created_by_id)
@@ -245,7 +248,7 @@ SELECT r.role_id, p.perm_id, r.org_id, GETDATE(), @admin_id
 FROM @role_ids r
 JOIN @perm_ids p ON r.org_id = p.org_id
 WHERE r.name = 'Viewer' 
-AND p.name IN ('users.view', 'cv.view', 'reports.view');
+AND p.name IN ('dashboard:view', 'users:view', 'cv:view', 'reports:view');
 
 PRINT '✓ Permisos asignados a roles: Super Admin (todos), HR Manager (gestión), HR Analyst (CVs), Recruiter (CVs), Viewer (solo lectura)';
 GO
@@ -270,11 +273,11 @@ DECLARE @org3_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE na
 
 -- Asignar usuarios a organizaciones
 INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at) VALUES
--- USUARIOS DEMO (fáciles de usar para testing)
-(@demo_admin_id, @org1_id, GETDATE(), 1, GETDATE(), GETDATE()),     -- admin@demo.com -> TechCorp
-(@demo_manager_id, @org2_id, GETDATE(), 1, GETDATE(), GETDATE()),   -- manager@demo.com -> Consultores
-(@demo_user_id, @org3_id, GETDATE(), 1, GETDATE(), GETDATE()),      -- user@demo.com -> InnovaStart
-(@demo_viewer_id, @org1_id, GETDATE(), 1, GETDATE(), GETDATE()),    -- viewer@demo.com -> TechCorp
+-- USUARIOS DEMO (fáciles para testing) - usando subconsultas
+((SELECT id FROM users WHERE email = 'admin@demo.com'), @org1_id, GETDATE(), 1, GETDATE(), GETDATE()),     -- admin@demo.com -> TechCorp
+((SELECT id FROM users WHERE email = 'manager@demo.com'), @org2_id, GETDATE(), 1, GETDATE(), GETDATE()),   -- manager@demo.com -> Consultores
+((SELECT id FROM users WHERE email = 'user@demo.com'), @org3_id, GETDATE(), 1, GETDATE(), GETDATE()),      -- user@demo.com -> InnovaStart
+((SELECT id FROM users WHERE email = 'viewer@demo.com'), @org1_id, GETDATE(), 1, GETDATE(), GETDATE()),    -- viewer@demo.com -> TechCorp
 
 -- Usuarios de una sola organización
 (@admin_id, @org1_id, GETDATE(), 1, GETDATE(), GETDATE()),
@@ -290,19 +293,14 @@ INSERT INTO user_organizations (user_id, organization_id, joined_at, active, cre
 (@multiuser_id, @org2_id, GETDATE(), 1, GETDATE(), GETDATE()),
 (@multiuser_id, @org3_id, GETDATE(), 1, GETDATE(), GETDATE());
 
-PRINT '✓ Usuarios asignados a organizaciones. Pedro MultiOrg pertenece a las 3 organizaciones';
+PRINT '✓ Usuarios asignados a organizaciones: 4 usuarios demo + usuarios multi-tenant';
 GO
 
 -- ============================================================================
 -- ASIGNAR ROLES A USUARIOS (¡AQUÍ ESTÁ LA MAGIA MULTI-TENANT!)
 -- ============================================================================
 
--- Variables necesarias (incluyendo usuarios demo)
-DECLARE @demo_admin_id INT = (SELECT TOP 1 id FROM users WHERE email = 'admin@demo.com');
-DECLARE @demo_manager_id INT = (SELECT TOP 1 id FROM users WHERE email = 'manager@demo.com');
-DECLARE @demo_user_id INT = (SELECT TOP 1 id FROM users WHERE email = 'user@demo.com');
-DECLARE @demo_viewer_id INT = (SELECT TOP 1 id FROM users WHERE email = 'viewer@demo.com');
-
+-- Variables necesarias
 DECLARE @admin_id INT = (SELECT TOP 1 id FROM users WHERE email = 'admin@techcorp.cl');
 DECLARE @hr_manager_id INT = (SELECT TOP 1 id FROM users WHERE email = 'maria.garcia@consultores.cl');
 DECLARE @hr_analyst_id INT = (SELECT TOP 1 id FROM users WHERE email = 'ana.perez@techcorp.cl');
@@ -319,11 +317,11 @@ DECLARE @org3_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE na
 -- Asignar roles a usuarios
 INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES
 
--- USUARIOS DEMO (fáciles para testing)
-(@demo_admin_id, (SELECT id FROM roles WHERE name = 'Super Admin' AND organization_id = @org1_id), @org1_id, GETDATE(), 1, GETDATE(), GETDATE(), @demo_admin_id),    -- admin@demo.com -> Super Admin en TechCorp
-(@demo_manager_id, (SELECT id FROM roles WHERE name = 'HR Manager' AND organization_id = @org2_id), @org2_id, GETDATE(), 1, GETDATE(), GETDATE(), @demo_admin_id),  -- manager@demo.com -> HR Manager en Consultores
-(@demo_user_id, (SELECT id FROM roles WHERE name = 'HR Analyst' AND organization_id = @org3_id), @org3_id, GETDATE(), 1, GETDATE(), GETDATE(), @demo_admin_id),    -- user@demo.com -> HR Analyst en InnovaStart
-(@demo_viewer_id, (SELECT id FROM roles WHERE name = 'Viewer' AND organization_id = @org1_id), @org1_id, GETDATE(), 1, GETDATE(), GETDATE(), @demo_admin_id),      -- viewer@demo.com -> Viewer en TechCorp
+-- USUARIOS DEMO (fáciles para testing) - usando subconsultas
+((SELECT id FROM users WHERE email = 'admin@demo.com'), (SELECT id FROM roles WHERE name = 'Super Admin' AND organization_id = @org1_id), @org1_id, GETDATE(), 1, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'admin@demo.com')),    -- admin@demo.com -> Super Admin en TechCorp
+((SELECT id FROM users WHERE email = 'manager@demo.com'), (SELECT id FROM roles WHERE name = 'HR Manager' AND organization_id = @org2_id), @org2_id, GETDATE(), 1, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'admin@demo.com')),  -- manager@demo.com -> HR Manager en Consultores
+((SELECT id FROM users WHERE email = 'user@demo.com'), (SELECT id FROM roles WHERE name = 'HR Analyst' AND organization_id = @org3_id), @org3_id, GETDATE(), 1, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'admin@demo.com')),    -- user@demo.com -> HR Analyst en InnovaStart
+((SELECT id FROM users WHERE email = 'viewer@demo.com'), (SELECT id FROM roles WHERE name = 'Viewer' AND organization_id = @org1_id), @org1_id, GETDATE(), 1, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'admin@demo.com')),      -- viewer@demo.com -> Viewer en TechCorp
 
 -- TechCorp Solutions (@org1_id)
 (@admin_id, (SELECT id FROM roles WHERE name = 'Super Admin' AND organization_id = @org1_id), @org1_id, GETDATE(), 1, GETDATE(), GETDATE(), @admin_id),
@@ -346,7 +344,7 @@ INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_a
 -- En InnovaStart: Es Super Admin (permisos completos)
 (@multiuser_id, (SELECT id FROM roles WHERE name = 'Super Admin' AND organization_id = @org3_id), @org3_id, GETDATE(), 1, GETDATE(), GETDATE(), @admin_id);
 
-PRINT '✓ ROLES ASIGNADOS - Pedro MultiOrg: Viewer en TechCorp, HR Manager en Consultores, Super Admin en InnovaStart';
+PRINT '✓ ROLES ASIGNADOS - Usuarios demo + Pedro MultiOrg con diferentes roles por organización';
 GO
 
 -- ============================================================================
@@ -354,30 +352,23 @@ GO
 -- ============================================================================
 
 -- Variables necesarias
-DECLARE @admin_id INT = (SELECT TOP 1 id FROM users WHERE email = 'admin@techcorp.cl');
-DECLARE @hr_manager_id INT = (SELECT TOP 1 id FROM users WHERE email = 'maria.garcia@consultores.cl');
-DECLARE @hr_analyst_id INT = (SELECT TOP 1 id FROM users WHERE email = 'ana.perez@techcorp.cl');
-DECLARE @recruiter_id INT = (SELECT TOP 1 id FROM users WHERE email = 'juan.recruiter@innovastart.cl');
-DECLARE @consultant_id INT = (SELECT TOP 1 id FROM users WHERE email = 'laura.consultant@consultores.cl');
-DECLARE @startup_founder_id INT = (SELECT TOP 1 id FROM users WHERE email = 'sofia@innovastart.cl');
-
 DECLARE @org1_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE name = 'TechCorp Solutions');
 DECLARE @org2_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE name = 'Consultores & Asociados');
 DECLARE @org3_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE name = 'InnovaStart');
 
--- Crear procesos de CV de ejemplo para cada organización
+-- Crear procesos de CV de ejemplo para cada organización usando subconsultas
 INSERT INTO cv_processes (name, status, file_path, processed_data, organization_id, created_at, updated_at, created_by_id, updated_by_id) VALUES
 -- Procesos de TechCorp
-('CV_Juan_Desarrollador.pdf', 'completed', '/uploads/org1/cv_juan_dev.pdf', '{"name":"Juan Desarrollador","skills":["JavaScript","React","Node.js"],"experience":3}', @org1_id, GETDATE(), GETDATE(), @admin_id, @admin_id),
-('CV_Maria_Designer.pdf', 'processing', '/uploads/org1/cv_maria_design.pdf', NULL, @org1_id, GETDATE(), GETDATE(), @hr_analyst_id, @hr_analyst_id),
+('CV_Juan_Desarrollador.pdf', 'completed', '/uploads/org1/cv_juan_dev.pdf', '{"name":"Juan Desarrollador","skills":["JavaScript","React","Node.js"],"experience":3}', @org1_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'admin@techcorp.cl'), (SELECT id FROM users WHERE email = 'admin@techcorp.cl')),
+('CV_Maria_Designer.pdf', 'processing', '/uploads/org1/cv_maria_design.pdf', NULL, @org1_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'ana.perez@techcorp.cl'), (SELECT id FROM users WHERE email = 'ana.perez@techcorp.cl')),
 
 -- Procesos de Consultores
-('CV_Carlos_Consultor.pdf', 'completed', '/uploads/org2/cv_carlos_cons.pdf', '{"name":"Carlos Consultor","skills":["Strategy","Management","SAP"],"experience":8}', @org2_id, GETDATE(), GETDATE(), @hr_manager_id, @hr_manager_id),
-('CV_Ana_Analista.pdf', 'pending', '/uploads/org2/cv_ana_analyst.pdf', NULL, @org2_id, GETDATE(), GETDATE(), @consultant_id, @consultant_id),
+('CV_Carlos_Consultor.pdf', 'completed', '/uploads/org2/cv_carlos_cons.pdf', '{"name":"Carlos Consultor","skills":["Strategy","Management","SAP"],"experience":8}', @org2_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'maria.garcia@consultores.cl'), (SELECT id FROM users WHERE email = 'maria.garcia@consultores.cl')),
+('CV_Ana_Analista.pdf', 'pending', '/uploads/org2/cv_ana_analyst.pdf', NULL, @org2_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'laura.consultant@consultores.cl'), (SELECT id FROM users WHERE email = 'laura.consultant@consultores.cl')),
 
 -- Procesos de InnovaStart
-('CV_Pedro_Startup.pdf', 'completed', '/uploads/org3/cv_pedro_startup.pdf', '{"name":"Pedro Startup","skills":["Python","AI","Entrepreneurship"],"experience":2}', @org3_id, GETDATE(), GETDATE(), @startup_founder_id, @startup_founder_id),
-('CV_Laura_Marketing.pdf', 'failed', '/uploads/org3/cv_laura_mkt.pdf', NULL, @org3_id, GETDATE(), GETDATE(), @recruiter_id, @recruiter_id);
+('CV_Pedro_Startup.pdf', 'completed', '/uploads/org3/cv_pedro_startup.pdf', '{"name":"Pedro Startup","skills":["Python","AI","Entrepreneurship"],"experience":2}', @org3_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'sofia@innovastart.cl'), (SELECT id FROM users WHERE email = 'sofia@innovastart.cl')),
+('CV_Laura_Marketing.pdf', 'failed', '/uploads/org3/cv_laura_mkt.pdf', NULL, @org3_id, GETDATE(), GETDATE(), (SELECT id FROM users WHERE email = 'juan.recruiter@innovastart.cl'), (SELECT id FROM users WHERE email = 'juan.recruiter@innovastart.cl'));
 
 PRINT '✓ 6 procesos de CV creados (2 por cada organización)';
 GO
@@ -387,18 +378,14 @@ GO
 -- ============================================================================
 
 -- Variables necesarias
-DECLARE @admin_id INT = (SELECT TOP 1 id FROM users WHERE email = 'admin@techcorp.cl');
-DECLARE @hr_manager_id INT = (SELECT TOP 1 id FROM users WHERE email = 'maria.garcia@consultores.cl');
-DECLARE @multiuser_id INT = (SELECT TOP 1 id FROM users WHERE email = 'multiuser@example.cl');
-
 DECLARE @org1_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE name = 'TechCorp Solutions');
 DECLARE @org2_id UNIQUEIDENTIFIER = (SELECT TOP 1 id FROM organizations WHERE name = 'Consultores & Asociados');
 
--- Crear sesiones activas (mostrando contexto de organización actual)
+-- Crear sesiones activas (mostrando contexto de organización actual) usando subconsultas
 INSERT INTO user_sessions (user_id, organization_id, session_token, expires_at, created_at, last_activity) VALUES
-(@admin_id, @org1_id, 'session_token_admin_tech', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()),
-(@hr_manager_id, @org2_id, 'session_token_manager_cons', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()),
-(@multiuser_id, @org2_id, 'session_token_multi_cons', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()); -- Usuario multi actualmente activo en Consultores
+((SELECT id FROM users WHERE email = 'admin@techcorp.cl'), @org1_id, 'session_token_admin_tech', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()),
+((SELECT id FROM users WHERE email = 'maria.garcia@consultores.cl'), @org2_id, 'session_token_manager_cons', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()),
+((SELECT id FROM users WHERE email = 'multiuser@example.cl'), @org2_id, 'session_token_multi_cons', DATEADD(hour, 24, GETDATE()), GETDATE(), GETDATE()); -- Usuario multi actualmente activo en Consultores
 
 PRINT '✓ 3 sesiones activas creadas (Pedro MultiOrg actualmente en Consultores & Asociados)';
 GO
@@ -435,7 +422,7 @@ PRINT '   • Consultores & Asociados: ROL HR MANAGER (permisos altos)';
 PRINT '   • InnovaStart: ROL SUPER ADMIN (permisos completos)';
 PRINT '';
 PRINT '🔐 SISTEMA DE PERMISOS:';
-PRINT '   • 20 permisos × 3 organizaciones = 60 permisos totales';
+PRINT '   • 23 permisos × 3 organizaciones = 69 permisos totales';
 PRINT '   • 5 roles × 3 organizaciones = 15 roles totales';
 PRINT '   • Aislamiento completo por organización';
 PRINT '';
@@ -455,3 +442,6 @@ PRINT '   3. Compara los diferentes permisos obtenidos';
 PRINT '';
 PRINT '==========================================';
 GO
+
+
+update users set password_hash = '$2b$10$faK/1XpBNQOkY8sgw8M3U.pmUtYxw8hGsV684cScQKRxIrGLJ588O'

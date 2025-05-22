@@ -60,14 +60,13 @@ export class RoleBackendService {
           r.id,
           r.name,
           r.description,
-          r.active,
           r.created_at,
           r.updated_at,
           COUNT(ur.user_id) as userCount
         FROM roles r
-        LEFT JOIN user_roles ur ON r.id = ur.role_id
+        LEFT JOIN user_role_assignments ur ON r.id = ur.role_id
         ${finalWhere}
-        GROUP BY r.id, r.name, r.description, r.active, r.created_at, r.updated_at
+        GROUP BY r.id, r.name, r.description, r.created_at, r.updated_at
         ${orderBy}
         ${pagination}
       `;
@@ -77,18 +76,19 @@ export class RoleBackendService {
       // Obtener permisos para cada rol
       const rolesWithPermissions: RoleType[] = await Promise.all(
         roles.map(async (role) => {
-          const permissions = await executeQuery<{ permission_key: string }>(
-            `SELECT p.permission_key
+          const permissions = await executeQuery<{ name: string }>(
+            `SELECT p.name
              FROM permissions p
-             INNER JOIN role_permissions rp ON p.id = rp.permission_id
-             WHERE rp.role_id = @roleId AND p.active = 1
-             ORDER BY p.permission_key`,
+             INNER JOIN role_permission_assignments rp ON p.id = rp.permission_id
+             WHERE rp.role_id = @roleId AND rp.active = 1
+             ORDER BY p.name`,
             { roleId: role.id }
           );
 
           return {
             ...role,
-            permissions: permissions.map(p => p.permission_key),
+            active: true, // Campo no disponible en multi-tenant schema  
+            permissions: permissions.map(p => p.name),
             userCount: role.userCount
           };
         })
@@ -122,7 +122,7 @@ export class RoleBackendService {
           r.updated_at,
           COUNT(ur.user_id) as userCount
         FROM roles r
-        LEFT JOIN user_roles ur ON r.id = ur.role_id
+        LEFT JOIN user_role_assignments ur ON r.id = ur.role_id
         WHERE r.id = @id
         GROUP BY r.id, r.name, r.description, r.active, r.created_at, r.updated_at
       `;
@@ -137,8 +137,8 @@ export class RoleBackendService {
       const permissions = await executeQuery<{ id: number; permission_key: string }>(
         `SELECT p.id, p.permission_key
          FROM permissions p
-         INNER JOIN role_permissions rp ON p.id = rp.permission_id
-         WHERE rp.role_id = @roleId AND p.active = 1
+         INNER JOIN role_permission_assignments rp ON p.id = rp.permission_id
+         WHERE rp.role_id = @roleId AND rp.active = 1 AND p.active = 1
          ORDER BY p.permission_key`,
         { roleId: id }
       );
@@ -147,8 +147,8 @@ export class RoleBackendService {
       const users = await executeQuery<{ id: number; name: string; email: string; active: boolean }>(
         `SELECT u.id, u.name, u.email, u.active
          FROM users u
-         INNER JOIN user_roles ur ON u.id = ur.user_id
-         WHERE ur.role_id = @roleId AND u.active = 1
+         INNER JOIN user_role_assignments ur ON u.id = ur.user_id
+         WHERE ur.role_id = @roleId AND ur.active = 1 AND u.active = 1
          ORDER BY u.name`,
         { roleId: id }
       );
@@ -190,7 +190,31 @@ export class RoleBackendService {
             const permRequest = transaction.request();
             permRequest.input('roleId', newRole.id);
             permRequest.input('permissionId', permissionId);
-            await permRequest.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permissionId)');
+            permRequest.input('organizationId', 'SELECT organization_id FROM users WHERE id = @currentUserId');
+            permRequest.input('currentUserId', 1); // This should come from authentication context
+            
+            await permRequest.query(`
+              INSERT INTO role_permission_assignments (
+                role_id, 
+                permission_id, 
+                organization_id, 
+                assigned_at, 
+                active, 
+                created_at, 
+                updated_at, 
+                created_by_id
+              ) 
+              VALUES (
+                @roleId, 
+                @permissionId, 
+                (SELECT organization_id FROM users WHERE id = @currentUserId), 
+                GETDATE(), 
+                1, 
+                GETDATE(), 
+                GETDATE(), 
+                @currentUserId
+              )
+            `);
           }
         }
 
@@ -244,39 +268,95 @@ export class RoleBackendService {
 
         // Update permissions if provided
         if (data.permissionIds !== undefined) {
-          // Delete existing permissions
+          // Soft delete existing permissions
           const deletePermissionsRequest = transaction.request();
           deletePermissionsRequest.input('roleId', id);
-          await deletePermissionsRequest.query('DELETE FROM role_permissions WHERE role_id = @roleId');
+          deletePermissionsRequest.input('currentUserId', 1); // This should come from authentication context
+          await deletePermissionsRequest.query(`
+            UPDATE role_permission_assignments 
+            SET active = 0, updated_at = GETDATE(), updated_by_id = @currentUserId 
+            WHERE role_id = @roleId AND active = 1
+          `);
 
           // Insert new permissions
           for (const permissionId of data.permissionIds) {
             const insertPermissionRequest = transaction.request();
             insertPermissionRequest.input('roleId', id);
             insertPermissionRequest.input('permissionId', permissionId);
-            await insertPermissionRequest.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permissionId)');
+            insertPermissionRequest.input('currentUserId', 1); // This should come from authentication context
+            
+            await insertPermissionRequest.query(`
+              INSERT INTO role_permission_assignments (
+                role_id, 
+                permission_id, 
+                organization_id, 
+                assigned_at, 
+                active, 
+                created_at, 
+                updated_at, 
+                created_by_id
+              ) 
+              VALUES (
+                @roleId, 
+                @permissionId, 
+                (SELECT organization_id FROM users WHERE id = @currentUserId), 
+                GETDATE(), 
+                1, 
+                GETDATE(), 
+                GETDATE(), 
+                @currentUserId
+              )
+            `);
           }
         }
 
         // Update users if provided
         if (data.userIds !== undefined) {
-          // Delete existing user assignments
+          // Soft delete existing user assignments
           const deleteUsersRequest = transaction.request();
           deleteUsersRequest.input('roleId', id);
-          await deleteUsersRequest.query('DELETE FROM user_roles WHERE role_id = @roleId');
+          deleteUsersRequest.input('currentUserId', 1); // This should come from authentication context
+          await deleteUsersRequest.query(`
+            UPDATE user_role_assignments 
+            SET active = 0, updated_at = GETDATE(), updated_by_id = @currentUserId 
+            WHERE role_id = @roleId AND active = 1
+          `);
 
           // Insert new user assignments
           for (const userId of data.userIds) {
             const insertUserRequest = transaction.request();
             insertUserRequest.input('roleId', id);
             insertUserRequest.input('userId', userId);
-            await insertUserRequest.query('INSERT INTO user_roles (role_id, user_id) VALUES (@roleId, @userId)');
+            insertUserRequest.input('currentUserId', 1); // This should come from authentication context
+            
+            await insertUserRequest.query(`
+              INSERT INTO user_role_assignments (
+                user_id, 
+                role_id, 
+                organization_id, 
+                assigned_at, 
+                active, 
+                created_at, 
+                updated_at, 
+                created_by_id
+              ) 
+              VALUES (
+                @userId, 
+                @roleId, 
+                (SELECT organization_id FROM users WHERE id = @currentUserId), 
+                GETDATE(), 
+                1, 
+                GETDATE(), 
+                GETDATE(), 
+                @currentUserId
+              )
+            `);
           }
         }
 
         // Get updated role with full details
         const roleResult = await this.getById(id);
-        return roleResult.data;
+        return roleResult;
       });
     } catch (error) {
       return handleQueryError(error);
@@ -287,7 +367,7 @@ export class RoleBackendService {
     try {
       // Verificar si el rol tiene usuarios asignados
       const userCount = await executeQuerySingle<{ count: number }>(
-        'SELECT COUNT(*) as count FROM user_roles WHERE role_id = @id',
+        'SELECT COUNT(*) as count FROM user_role_assignments WHERE role_id = @id AND active = 1',
         { id }
       );
 
@@ -311,17 +391,45 @@ export class RoleBackendService {
   static async assignPermissions(roleId: number, permissionIds: number[]): Promise<QueryResult<boolean>> {
     try {
       const result = await executeTransaction(async (transaction) => {
-        // Eliminar permisos existentes
+        // Soft delete existing permissions
         const deleteRequest = transaction.request();
         deleteRequest.input('roleId', roleId);
-        await deleteRequest.query('DELETE FROM role_permissions WHERE role_id = @roleId');
+        deleteRequest.input('currentUserId', 1); // This should come from authentication context
+        await deleteRequest.query(`
+          UPDATE role_permission_assignments 
+          SET active = 0, updated_at = GETDATE(), updated_by_id = @currentUserId 
+          WHERE role_id = @roleId AND active = 1
+        `);
 
-        // Insertar nuevos permisos
+        // Insert new permissions
         for (const permissionId of permissionIds) {
           const insertRequest = transaction.request();
           insertRequest.input('roleId', roleId);
           insertRequest.input('permissionId', permissionId);
-          await insertRequest.query('INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permissionId)');
+          insertRequest.input('currentUserId', 1); // This should come from authentication context
+          
+          await insertRequest.query(`
+            INSERT INTO role_permission_assignments (
+              role_id, 
+              permission_id, 
+              organization_id, 
+              assigned_at, 
+              active, 
+              created_at, 
+              updated_at, 
+              created_by_id
+            ) 
+            VALUES (
+              @roleId, 
+              @permissionId, 
+              (SELECT organization_id FROM users WHERE id = @currentUserId), 
+              GETDATE(), 
+              1, 
+              GETDATE(), 
+              GETDATE(), 
+              @currentUserId
+            )
+          `);
         }
 
         return true;
@@ -347,8 +455,8 @@ export class RoleBackendService {
     try {
       const query = `
         SELECT permission_id 
-        FROM role_permissions 
-        WHERE role_id = @roleId
+        FROM role_permission_assignments 
+        WHERE role_id = @roleId AND active = 1
       `;
       const permissions = await executeQuery<{ permission_id: number }>(query, { roleId });
       return handleQuerySuccess(permissions.map(p => p.permission_id));

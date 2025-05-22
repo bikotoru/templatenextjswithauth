@@ -16,16 +16,15 @@ export async function GET(request: NextRequest) {
     const permissions = await executeQuery(`
       SELECT 
         id, 
-        permission_key, 
-        display_name, 
+        name as permission_key, 
+        name as display_name, 
         description, 
-        module, 
-        active, 
+        'general' as module, 
+        1 as active, 
         created_at, 
         updated_at 
       FROM permissions 
-      WHERE active = 1 
-      ORDER BY module, display_name
+      ORDER BY name
     `);
 
     return NextResponse.json({

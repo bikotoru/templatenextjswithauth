@@ -70,15 +70,14 @@ export class UserBackendService {
           u.name,
           u.avatar,
           u.active,
-          u.last_login,
           u.created_at,
           u.updated_at,
           STRING_AGG(r.name, ', ') as roles
         FROM users u
-        LEFT JOIN user_roles ur ON u.id = ur.user_id
-        LEFT JOIN roles r ON ur.role_id = r.id AND r.active = 1
+        LEFT JOIN user_role_assignments ur ON u.id = ur.user_id
+        LEFT JOIN roles r ON ur.role_id = r.id
         ${finalWhere}
-        GROUP BY u.id, u.email, u.name, u.avatar, u.active, u.last_login, u.created_at, u.updated_at
+        GROUP BY u.id, u.email, u.name, u.avatar, u.active, u.created_at, u.updated_at
         ${orderBy}
         ${pagination}
       `;
@@ -88,6 +87,7 @@ export class UserBackendService {
       // Formatear datos
       const formattedUsers: UserType[] = users.map(user => ({
         ...user,
+        last_login: undefined, // Campo no disponible en multi-tenant schema
         roles: user.roles ? user.roles.split(', ') : [],
         permissions: [] // Se cargarán por separado si es necesario
       }));
@@ -134,8 +134,8 @@ export class UserBackendService {
       const rolesQuery = `
         SELECT r.id, r.name, r.description
         FROM roles r
-        INNER JOIN user_roles ur ON r.id = ur.role_id
-        WHERE ur.user_id = @userId AND r.active = 1
+        INNER JOIN user_role_assignments ur ON r.id = ur.role_id
+        WHERE ur.user_id = @userId
         ORDER BY r.name
       `;
       const roles = await executeQuery<{ id: number; name: string; description?: string }>(rolesQuery, { userId: id });
@@ -143,37 +143,36 @@ export class UserBackendService {
       // Obtener permisos heredados por roles
       const inheritedPermissionsQuery = `
         SELECT DISTINCT rp.permission_id
-        FROM role_permissions rp
-        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+        FROM role_permission_assignments rp
+        INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
         WHERE ur.user_id = @userId
       `;
       const inheritedPermissions = await executeQuery<{ permission_id: number }>(inheritedPermissionsQuery, { userId: id });
 
       // Obtener permisos del usuario (directos + por roles)
       const permissionsQuery = `
-        SELECT p.id, p.permission_key
+        SELECT p.id, p.name as permission_key
         FROM permissions p
-        WHERE p.active = 1 
-        AND p.id IN (
+        WHERE p.id IN (
           SELECT up.permission_id 
-          FROM user_permissions up 
+          FROM user_permission_assignments up 
           WHERE up.user_id = @userId
           
           UNION
           
           SELECT rp.permission_id 
-          FROM role_permissions rp
-          INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+          FROM role_permission_assignments rp
+          INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
           WHERE ur.user_id = @userId
         )
-        ORDER BY p.permission_key
+        ORDER BY p.name
       `;
       const permissions = await executeQuery<{ id: number; permission_key: string }>(permissionsQuery, { userId: id });
 
       // Obtener role_ids directos del usuario
       const userRoleIdsQuery = `
         SELECT role_id
-        FROM user_roles
+        FROM user_role_assignments
         WHERE user_id = @userId
       `;
       const userRoleIds = await executeQuery<{ role_id: number }>(userRoleIdsQuery, { userId: id });
@@ -181,7 +180,7 @@ export class UserBackendService {
       // Obtener permission_ids directos del usuario
       const userPermissionIdsQuery = `
         SELECT permission_id
-        FROM user_permissions
+        FROM user_permission_assignments
         WHERE user_id = @userId
       `;
       const userPermissionIds = await executeQuery<{ permission_id: number }>(userPermissionIdsQuery, { userId: id });
@@ -241,7 +240,7 @@ export class UserBackendService {
             const permRequest = transaction.request();
             permRequest.input('userId', newUser.id);
             permRequest.input('permissionId', permissionId);
-            await permRequest.query('INSERT INTO user_permissions (user_id, permission_id) VALUES (@userId, @permissionId)');
+            await permRequest.query('INSERT INTO user_permission_assignments (user_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES (@userId, @permissionId, (SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId), GETDATE(), 1, GETDATE(), GETDATE(), @userId)');
           }
         }
 
@@ -306,14 +305,14 @@ export class UserBackendService {
           // Delete existing roles
           const deleteRolesRequest = transaction.request();
           deleteRolesRequest.input('userId', id);
-          await deleteRolesRequest.query('DELETE FROM user_roles WHERE user_id = @userId');
+          await deleteRolesRequest.query('DELETE FROM user_role_assignments WHERE user_id = @userId');
 
           // Insert new roles
           for (const roleId of data.roleIds) {
             const insertRoleRequest = transaction.request();
             insertRoleRequest.input('userId', id);
             insertRoleRequest.input('roleId', roleId);
-            await insertRoleRequest.query('INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)');
+            await insertRoleRequest.query('INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES (@userId, @roleId, (SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId), GETDATE(), 1, GETDATE(), GETDATE(), @userId)');
           }
         }
 
@@ -322,20 +321,20 @@ export class UserBackendService {
           // Delete existing direct permissions
           const deletePermissionsRequest = transaction.request();
           deletePermissionsRequest.input('userId', id);
-          await deletePermissionsRequest.query('DELETE FROM user_permissions WHERE user_id = @userId');
+          await deletePermissionsRequest.query('DELETE FROM user_permission_assignments WHERE user_id = @userId');
 
           // Insert new permissions
           for (const permissionId of data.permissionIds) {
             const insertPermissionRequest = transaction.request();
             insertPermissionRequest.input('userId', id);
             insertPermissionRequest.input('permissionId', permissionId);
-            await insertPermissionRequest.query('INSERT INTO user_permissions (user_id, permission_id) VALUES (@userId, @permissionId)');
+            await insertPermissionRequest.query('INSERT INTO user_permission_assignments (user_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES (@userId, @permissionId, (SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId), GETDATE(), 1, GETDATE(), GETDATE(), @userId)');
           }
         }
 
         // Get updated user with full details
         const userResult = await this.getById(id);
-        return userResult.data;
+        return userResult;
       });
     } catch (error) {
       return handleQueryError(error);
@@ -388,14 +387,14 @@ export class UserBackendService {
         // Eliminar permisos directos existentes
         const deleteRequest = transaction.request();
         deleteRequest.input('userId', userId);
-        await deleteRequest.query('DELETE FROM user_permissions WHERE user_id = @userId');
+        await deleteRequest.query('DELETE FROM user_permission_assignments WHERE user_id = @userId');
 
         // Insertar nuevos permisos
         for (const permissionId of permissionIds) {
           const insertRequest = transaction.request();
           insertRequest.input('userId', userId);
           insertRequest.input('permissionId', permissionId);
-          await insertRequest.query('INSERT INTO user_permissions (user_id, permission_id) VALUES (@userId, @permissionId)');
+          await insertRequest.query('INSERT INTO user_permission_assignments (user_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES (@userId, @permissionId, (SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId), GETDATE(), 1, GETDATE(), GETDATE(), @userId)');
         }
 
         return true;

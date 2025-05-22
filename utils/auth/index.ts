@@ -72,7 +72,7 @@ class AuthService {
       // Si no se especifica organización, obtener permisos de la primera organización del usuario
       if (!organizationId) {
         const firstOrg = await executeQuerySingle<{ organization_id: string }>(
-          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId',
           { userId }
         );
         if (!firstOrg) return [];
@@ -89,7 +89,6 @@ class AuthService {
            FROM user_permission_assignments up 
            WHERE up.user_id = @userId 
            AND up.organization_id = @organizationId
-           AND up.active = 1
            
            UNION
            
@@ -99,7 +98,6 @@ class AuthService {
            INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
            WHERE ur.user_id = @userId 
            AND ur.organization_id = @organizationId
-           AND ur.active = 1
          )
          ORDER BY p.name`,
         { userId, organizationId }
@@ -118,7 +116,7 @@ class AuthService {
       // Si no se especifica organización, obtener roles de la primera organización del usuario
       if (!organizationId) {
         const firstOrg = await executeQuerySingle<{ organization_id: string }>(
-          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId',
           { userId }
         );
         if (!firstOrg) return [];
@@ -131,7 +129,6 @@ class AuthService {
          INNER JOIN user_role_assignments ur ON r.id = ur.role_id
          WHERE ur.user_id = @userId 
          AND ur.organization_id = @organizationId
-         AND ur.active = 1
          ORDER BY r.name`,
         { userId, organizationId }
       );
@@ -223,7 +220,7 @@ class AuthService {
       // Si no se especifica organización, usar la primera organización del usuario
       if (!organizationId) {
         const firstOrg = await executeQuerySingle<{ organization_id: string }>(
-          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
+          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId',
           { userId }
         );
         if (!firstOrg) return false;
