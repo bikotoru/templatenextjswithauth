@@ -13,7 +13,8 @@
       "Bash(timeout 10s npm run dev)",
       "Bash(true)",
       "Bash(ls:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run lint)"
     ],
     "deny": []
   }

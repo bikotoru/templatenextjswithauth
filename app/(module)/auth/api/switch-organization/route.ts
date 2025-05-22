@@ -40,13 +40,34 @@ export async function POST(request: NextRequest) {
 
     // Verificar que el usuario tenga acceso a esa organización
     const userOrganizations = await getUserOrganizations(userId);
-    const targetOrg = userOrganizations.find(org => org.id === organizationId);
+    let targetOrg = userOrganizations.find(org => org.id === organizationId);
 
+    // Si no tiene acceso directo, verificar si es Super Admin
     if (!targetOrg) {
-      return NextResponse.json(
-        { success: false, error: 'No tienes acceso a esta organización' },
-        { status: 403 }
-      );
+      // Verificar si es Super Admin
+      const roles = await getUserRoles(userId, decoded.organizationId);
+      const isSuperAdmin = roles.includes('Super Admin');
+      
+      if (isSuperAdmin) {
+        // El Super Admin puede acceder a cualquier organización
+        const orgQuery = await executeQuery<any>(
+          `SELECT id, name, logo, rut, active, expires_at 
+           FROM organizations 
+           WHERE id = @organizationId`,
+          { organizationId }
+        );
+        
+        if (orgQuery.length > 0) {
+          targetOrg = orgQuery[0];
+        }
+      }
+      
+      if (!targetOrg) {
+        return NextResponse.json(
+          { success: false, error: 'No tienes acceso a esta organización' },
+          { status: 403 }
+        );
+      }
     }
 
     // Obtener permisos y roles para la nueva organización

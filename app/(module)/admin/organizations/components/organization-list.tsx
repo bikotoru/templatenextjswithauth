@@ -51,9 +51,20 @@ interface OrganizationListProps {
 export default function OrganizationList({ onOrganizationSelect }: OrganizationListProps) {
   const { isSuperAdmin } = useAuth();
   const router = useRouter();
+  const [organizations, setOrganizations] = useState<OrganizationType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [expirationFilter, setExpirationFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   
-  // Solo mostrar si es Super Admin - verificar antes de cualquier hook
-  if (!isSuperAdmin()) {
+  const isAdmin = isSuperAdmin();
+  
+  // Solo mostrar si es Super Admin - después de todos los hooks
+  if (!isAdmin) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="text-center">
@@ -66,16 +77,6 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
       </div>
     );
   }
-
-  const [organizations, setOrganizations] = useState<OrganizationType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<string>('all');
-  const [expirationFilter, setExpirationFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
   
   // Ya no necesitamos estados para modales
 

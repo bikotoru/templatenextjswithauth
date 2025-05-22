@@ -106,30 +106,12 @@ class AuthService {
       let permissions: { name: string }[] = [];
 
       if (isSuperAdmin) {
-        // Para Super Admin: obtener permisos de TODAS las organizaciones a las que pertenece
+        // Para Super Admin: obtener TODOS los permisos existentes en el sistema
         permissions = await executeQuery<{ name: string }>(
-          `SELECT DISTINCT p.name
-           FROM permissions p
-           WHERE p.active = 1
-           AND p.id IN (
-             -- Permisos directos
-             SELECT up.permission_id 
-             FROM user_permission_assignments up 
-             WHERE up.user_id = @userId 
-             AND up.active = 1
-             
-             UNION
-             
-             -- Permisos por roles
-             SELECT rp.permission_id 
-             FROM role_permission_assignments rp
-             INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
-             WHERE ur.user_id = @userId 
-             AND ur.active = 1
-             AND rp.active = 1
-           )
-           ORDER BY p.name`,
-          { userId }
+          `SELECT DISTINCT name
+           FROM permissions
+           WHERE active = 1
+           ORDER BY name`
         );
       } else {
         // Para usuarios normales: solo permisos de la organización actual

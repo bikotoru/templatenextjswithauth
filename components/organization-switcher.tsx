@@ -11,9 +11,35 @@ export function OrganizationSwitcher() {
   const { user, currentOrganization, switchOrganization } = useAuth();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [allOrganizations, setAllOrganizations] = React.useState<any[]>([]);
+  const [loadingOrgs, setLoadingOrgs] = React.useState(false);
 
-  if (!user?.organizations || user.organizations.length <= 1) {
-    // No mostrar el switcher si no hay múltiples organizaciones
+  const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+
+  // Cargar todas las organizaciones si es Super Admin
+  React.useEffect(() => {
+    if (isSuperAdmin && isModalOpen) {
+      loadAllOrganizations();
+    }
+  }, [isSuperAdmin, isModalOpen]);
+
+  const loadAllOrganizations = async () => {
+    setLoadingOrgs(true);
+    try {
+      const response = await fetch('/api/admin/organizations?page=1&pageSize=100&sortBy=name&sortOrder=ASC');
+      if (response.ok) {
+        const data = await response.json();
+        setAllOrganizations(data.data?.organizations || []);
+      }
+    } catch (error) {
+      console.error('Error loading organizations:', error);
+    } finally {
+      setLoadingOrgs(false);
+    }
+  };
+
+  if (!isSuperAdmin && (!user?.organizations || user.organizations.length <= 1)) {
+    // No mostrar el switcher si no hay múltiples organizaciones (para usuarios normales)
     return null;
   }
 
@@ -66,10 +92,10 @@ export function OrganizationSwitcher() {
       <OrganizationSelectorModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
-        organizations={user.organizations}
+        organizations={isSuperAdmin ? allOrganizations : user.organizations}
         currentOrganization={currentOrganization}
         onSelectOrganization={handleSwitchOrganization}
-        isLoading={isLoading}
+        isLoading={isLoading || loadingOrgs}
       />
     </>
   );
