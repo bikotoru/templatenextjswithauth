@@ -548,6 +548,8 @@ WHERE id = @superadmin_id;
 -- Crear permisos del sistema (OCULTOS)
 INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
 ('system:manage', 'Gestión completa del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('dashboard:view', 'Acceso al dashboard', 'dashboard', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('admin:access', 'Acceso al panel de administración', 'admin', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
 ('organizations:create', 'Crear nuevas organizaciones', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
 ('organizations:edit', 'Modificar organizaciones existentes', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
 ('organizations:deactivate', 'Desactivar organizaciones', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
@@ -699,7 +701,7 @@ PRINT '  ✓ Super Admin: superadmin@system.local / Soporte.2019';
 PRINT '  ✓ Usuario Demo: admin@demo.com / 123456';
 PRINT '  ✓ Organización: SYSTEM (para permisos del sistema)';
 PRINT '  ✓ Organización: Empresa Demo (organización de ejemplo)';
-PRINT '  ✓ 9 permisos del sistema (ocultos)';
+PRINT '  ✓ 11 permisos del sistema (ocultos)';
 PRINT '  ✓ 10 permisos básicos (usuarios, roles, dashboard)';
 PRINT '  ✓ 1 rol del sistema: Super Admin (oculto)';
 PRINT '  ✓ 2 roles básicos: Admin, Usuario';

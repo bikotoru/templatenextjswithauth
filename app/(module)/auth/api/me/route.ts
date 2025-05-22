@@ -76,6 +76,18 @@ export async function GET(request: NextRequest) {
       getUserRoles(userId, currentOrganization.id)
     ]);
 
+    // Debug temporal
+    console.log('🔍 /me API Debug:', {
+      userId,
+      email: userInfo.email,
+      currentOrganization: currentOrganization.name,
+      currentOrgId: currentOrganization.id,
+      roles,
+      permissionCount: permissions.length,
+      permissions,
+      hasOrganizationsViewAll: permissions.includes('organizations:view_all')
+    });
+
     const user = {
       id: userInfo.id,
       email: userInfo.email,

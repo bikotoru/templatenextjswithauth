@@ -91,35 +91,90 @@ class AuthService {
         organizationId = firstOrg.organization_id;
       }
 
-      const permissions = await executeQuery<{ name: string }>(
-        `SELECT DISTINCT p.name
-         FROM permissions p
-         WHERE p.organization_id = @organizationId
-         AND p.active = 1
-         AND p.id IN (
-           -- Permisos directos
-           SELECT up.permission_id 
-           FROM user_permission_assignments up 
-           WHERE up.user_id = @userId 
-           AND up.organization_id = @organizationId
-           AND up.active = 1
-           
-           UNION
-           
-           -- Permisos por roles
-           SELECT rp.permission_id 
-           FROM role_permission_assignments rp
-           INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
-           WHERE ur.user_id = @userId 
-           AND ur.organization_id = @organizationId
-           AND ur.active = 1
-           AND rp.active = 1
-         )
-         ORDER BY p.name`,
-        { userId, organizationId }
-      );
+      // Verificar si el usuario es Super Admin
+      const roles = await this.getUserRoles(userId, organizationId);
+      const isSuperAdmin = roles.includes('Super Admin');
 
-      return permissions.map(p => p.name);
+      // Debug temporal
+      console.log('🔍 getUserPermissions Debug:', {
+        userId,
+        organizationId,
+        roles,
+        isSuperAdmin
+      });
+
+      let permissions: { name: string }[] = [];
+
+      if (isSuperAdmin) {
+        // Para Super Admin: obtener permisos de TODAS las organizaciones a las que pertenece
+        permissions = await executeQuery<{ name: string }>(
+          `SELECT DISTINCT p.name
+           FROM permissions p
+           WHERE p.active = 1
+           AND p.id IN (
+             -- Permisos directos
+             SELECT up.permission_id 
+             FROM user_permission_assignments up 
+             WHERE up.user_id = @userId 
+             AND up.active = 1
+             
+             UNION
+             
+             -- Permisos por roles
+             SELECT rp.permission_id 
+             FROM role_permission_assignments rp
+             INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
+             WHERE ur.user_id = @userId 
+             AND ur.active = 1
+             AND rp.active = 1
+           )
+           ORDER BY p.name`,
+          { userId }
+        );
+      } else {
+        // Para usuarios normales: solo permisos de la organización actual
+        permissions = await executeQuery<{ name: string }>(
+          `SELECT DISTINCT p.name
+           FROM permissions p
+           WHERE p.organization_id = @organizationId
+           AND p.active = 1
+           AND p.id IN (
+             -- Permisos directos
+             SELECT up.permission_id 
+             FROM user_permission_assignments up 
+             WHERE up.user_id = @userId 
+             AND up.organization_id = @organizationId
+             AND up.active = 1
+             
+             UNION
+             
+             -- Permisos por roles
+             SELECT rp.permission_id 
+             FROM role_permission_assignments rp
+             INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
+             WHERE ur.user_id = @userId 
+             AND ur.organization_id = @organizationId
+             AND ur.active = 1
+             AND rp.active = 1
+           )
+           ORDER BY p.name`,
+          { userId, organizationId }
+        );
+      }
+
+      const permissionNames = permissions.map(p => p.name);
+      
+      // Debug temporal
+      console.log('🔍 Permissions Result:', {
+        userId,
+        organizationId,
+        isSuperAdmin,
+        permissionCount: permissionNames.length,
+        permissions: permissionNames,
+        hasOrganizationsViewAll: permissionNames.includes('organizations:view_all')
+      });
+
+      return permissionNames;
     } catch (error) {
       console.error('Error getting user permissions:', error);
       return [];
@@ -367,7 +422,7 @@ class AuthService {
       // Actualizar último acceso de la sesión
       await executeQuery(
         'UPDATE user_sessions SET expires_at = DATEADD(hour, 24, GETDATE()), last_activity = GETDATE(), updated_at = GETDATE(), updated_by_id = @userId WHERE session_token = @token',
-        { token, userId: session.user_id }
+        { token, userId: sessionData.user_id }
       );
 
       const [permissions, roles] = await Promise.all([

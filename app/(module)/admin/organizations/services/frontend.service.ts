@@ -8,7 +8,7 @@ import {
 } from '../types';
 
 export class OrganizationFrontendService {
-  private static baseUrl = '/api/admin/organizations';
+  private static baseUrl = '/admin/organizations/api';
 
   static async getAll(params: OrganizationSearchParams = {}): Promise<OrganizationListResponse> {
     const searchParams = new URLSearchParams();

@@ -40,9 +40,6 @@ export class OrganizationBackendService {
       // Construir condiciones WHERE
       const conditions: Record<string, any> = {};
       if (active !== undefined) conditions['o.active'] = active;
-      
-      // Excluir la organización SYSTEM de la lista
-      conditions['o.name'] = { operator: '!=', value: 'SYSTEM' };
 
       const { whereClause, params: whereParams } = buildWhereClause(conditions, 'AND');
       
@@ -50,12 +47,23 @@ export class OrganizationBackendService {
       let additionalWhere = '';
       let additionalParams: Record<string, any> = {};
       
+      // Siempre excluir la organización SYSTEM
+      const systemFilter = "o.name != @systemName";
+      additionalParams.systemName = 'SYSTEM';
+      
       if (search) {
-        additionalWhere += (whereClause ? ' AND ' : 'WHERE ') + '(o.name LIKE @search OR o.rut LIKE @search)';
+        additionalWhere += ' AND (o.name LIKE @search OR o.rut LIKE @search)';
         additionalParams.search = `%${search}%`;
       }
 
-      const finalWhere = whereClause + additionalWhere;
+      // Combinar todos los filtros
+      let finalWhere = '';
+      if (whereClause) {
+        finalWhere = `${whereClause} AND ${systemFilter}${additionalWhere}`;
+      } else {
+        finalWhere = `WHERE ${systemFilter}${additionalWhere}`;
+      }
+      
       const allParams = { ...whereParams, ...additionalParams };
 
       // Query para contar total de registros

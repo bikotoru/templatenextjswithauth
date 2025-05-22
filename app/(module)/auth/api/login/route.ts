@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
     // Intentar login
     const { organizationId } = body; // Agregar organizationId del request
     const result = await login({ email, password, organizationId });
+    
+    // Debug temporal
+    console.log('🔍 Login Result Debug:', {
+      email,
+      success: result.success,
+      requiresOrganizationSelection: result.requiresOrganizationSelection,
+      userRoles: result.user?.roles,
+      userPermissions: result.user?.permissions,
+      currentOrganization: result.user?.currentOrganization
+    });
 
     if (!result.success) {
       return NextResponse.json(
@@ -56,7 +66,9 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 24 * 60 * 60 // 24 horas
+      path: '/',
+      maxAge: 24 * 60 * 60, // 24 horas en segundos
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 horas desde ahora
     });
 
     return response;
