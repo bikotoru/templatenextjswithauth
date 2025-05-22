@@ -10,9 +10,8 @@ import {
   Key, 
   Activity,
   TrendingUp,
-  FileText,
-  MessageSquare,
-  Calendar
+  Calendar,
+  Settings
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -40,13 +39,6 @@ export default function DashboardPage() {
       icon: Key,
       permission: 'permissions:view',
     },
-    {
-      title: 'CVs Procesados',
-      value: '89',
-      description: 'Currículums gestionados',
-      icon: FileText,
-      permission: 'cv:view',
-    },
   ];
 
   const recentActivity = [
@@ -55,12 +47,6 @@ export default function DashboardPage() {
       user: 'juan.perez@email.com',
       time: 'Hace 5 minutos',
       type: 'user',
-    },
-    {
-      action: 'CV procesado exitosamente',
-      user: 'maria.garcia@email.com',
-      time: 'Hace 12 minutos',
-      type: 'cv',
     },
     {
       action: 'Rol actualizado',
@@ -79,7 +65,6 @@ export default function DashboardPage() {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'user': return <Users className="h-4 w-4" />;
-      case 'cv': return <FileText className="h-4 w-4" />;
       case 'role': return <Shield className="h-4 w-4" />;
       case 'auth': return <Activity className="h-4 w-4" />;
       default: return <Activity className="h-4 w-4" />;
@@ -89,7 +74,6 @@ export default function DashboardPage() {
   const getActivityColor = (type: string) => {
     switch (type) {
       case 'user': return 'bg-blue-100 text-blue-700';
-      case 'cv': return 'bg-green-100 text-green-700';
       case 'role': return 'bg-purple-100 text-purple-700';
       case 'auth': return 'bg-orange-100 text-orange-700';
       default: return 'bg-gray-100 text-gray-700';
@@ -203,14 +187,6 @@ export default function DashboardPage() {
                   </div>
                 )}
                 
-                {hasPermission('cv:create') && (
-                  <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                    <FileText className="h-6 w-6 text-green-600 mb-2" />
-                    <h3 className="font-medium text-sm">Subir CV</h3>
-                    <p className="text-xs text-gray-500">Procesar currículum</p>
-                  </div>
-                )}
-                
                 {hasPermission('roles:create') && (
                   <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
                     <Shield className="h-6 w-6 text-purple-600 mb-2" />
@@ -219,13 +195,6 @@ export default function DashboardPage() {
                   </div>
                 )}
                 
-                {hasPermission('cv:chat') && (
-                  <div className="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                    <MessageSquare className="h-6 w-6 text-orange-600 mb-2" />
-                    <h3 className="font-medium text-sm">CV Chat</h3>
-                    <p className="text-xs text-gray-500">Interactuar con CV</p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>

@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
+  isSuperAdmin: () => boolean;
   refreshUser: () => Promise<void>;
   switchOrganization: (organizationId: string) => Promise<boolean>;
   currentOrganization: Organization | null;
@@ -77,6 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return user?.roles.includes(role) || false;
   };
 
+  const isSuperAdmin = (): boolean => {
+    return hasRole('Super Admin');
+  };
+
   const refreshUser = async () => {
     await fetchUser();
   };
@@ -115,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     hasPermission,
     hasRole,
+    isSuperAdmin,
     refreshUser,
     switchOrganization,
     currentOrganization,

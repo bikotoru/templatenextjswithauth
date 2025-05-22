@@ -23,8 +23,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  FileText,
-  MessageSquare,
   ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -53,18 +51,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       url: '/dashboard',
       icon: Home,
       permission: 'dashboard:view',
-    },
-    {
-      title: 'CV Manager',
-      url: '/cv-manager',
-      icon: FileText,
-      permission: 'cv:view',
-    },
-    {
-      title: 'CV Chat',
-      url: '/cv-chat',
-      icon: MessageSquare,
-      permission: 'cv:chat',
     },
     {
       title: 'Admin',
@@ -215,8 +201,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   {pathname.startsWith('/admin/users') && 'Gestión de Usuarios'}
                   {pathname.startsWith('/admin/roles') && 'Gestión de Roles'}
                   {pathname.startsWith('/admin/permissions') && 'Gestión de Permisos'}
-                  {pathname.startsWith('/cv-manager') && 'CV Manager'}
-                  {pathname.startsWith('/cv-chat') && 'CV Chat'}
                 </h1>
                 {currentOrganization && (
                   <p className="text-sm text-muted-foreground">

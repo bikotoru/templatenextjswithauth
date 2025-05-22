@@ -186,6 +186,9 @@ class AuthService {
     try {
       const { email, password, organizationId } = credentials;
 
+
+      console.log(await this.hashPassword("Soporte.2019"));
+
       // Buscar usuario por email
       const user = await executeQuerySingle<{
         id: number;

@@ -172,4 +172,70 @@ export class UserFrontendService {
     
     return data.data;
   }
+
+  static async canChangePassword(userId: number): Promise<{ canChangePassword: boolean; reason?: string }> {
+    const response = await fetch(`/api/admin/users/${userId}/can-change-password`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Error al verificar permisos de contraseña');
+    }
+    
+    return {
+      canChangePassword: data.data.canChangePassword,
+      reason: data.data.reason
+    };
+  }
+
+  static async changePassword(userId: number, newPassword: string): Promise<boolean> {
+    const response = await fetch(`/api/admin/users/${userId}/change-password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ newPassword }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Error al cambiar contraseña');
+    }
+    
+    return true;
+  }
+
+  static async addUser(userData: {
+    email: string;
+    name?: string;
+    roleIds?: number[];
+    permissionIds?: number[];
+    temporaryPassword?: string;
+  }): Promise<{ userId: number; isNewUser: boolean; temporaryPassword?: string }> {
+    const response = await fetch('/api/admin/users/add-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Error al agregar usuario');
+    }
+    
+    return data.data;
+  }
 }

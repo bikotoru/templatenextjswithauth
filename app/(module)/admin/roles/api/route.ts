@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'DESC',
     };
 
-    const result = await RoleBackendService.getAll(params);
+    const result = await RoleBackendService.getAll(params, user);
     
     if (!result.success) {
       return NextResponse.json(result, { status: 500 });

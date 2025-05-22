@@ -39,9 +39,13 @@ import {
   Trash2, 
   Shield,
   Key,
+  Lock,
+  UserPlus,
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import AddUserForm from './add-user-form';
+import ChangePasswordForm from './change-password-form';
 
 interface UserListProps {
   onUserSelect?: (user: UserType) => void;
@@ -58,6 +62,11 @@ export default function UserList({ onUserSelect, onUserEdit, onUserCreate }: Use
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  
+  // Nuevos estados para los modales
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [showChangePasswordForm, setShowChangePasswordForm] = useState(false);
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState<{ id: number; email: string } | null>(null);
 
   const pageSize = 10;
 
@@ -141,9 +150,9 @@ export default function UserList({ onUserSelect, onUserEdit, onUserCreate }: Use
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Gestión de Usuarios</h2>
         {hasPermission('users:create') && (
-          <Button onClick={onUserCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Usuario
+          <Button onClick={() => setShowAddUserForm(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Agregar Usuario
           </Button>
         )}
       </div>
@@ -274,6 +283,16 @@ export default function UserList({ onUserSelect, onUserEdit, onUserCreate }: Use
                             Gestionar Permisos
                           </DropdownMenuItem>
                         )}
+                        {hasPermission('users:edit') && (
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedUserForPassword({ id: user.id, email: user.email });
+                            setShowChangePasswordForm(true);
+                          }}>
+                            <Lock className="mr-2 h-4 w-4" />
+                            Cambiar Contraseña
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         {hasPermission('users:delete') && (
                           <DropdownMenuItem 
@@ -322,6 +341,35 @@ export default function UserList({ onUserSelect, onUserEdit, onUserCreate }: Use
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Modales */}
+      <AddUserForm
+        open={showAddUserForm}
+        onOpenChange={setShowAddUserForm}
+        onSuccess={() => {
+          fetchUsers();
+          setShowAddUserForm(false);
+        }}
+      />
+
+      {selectedUserForPassword && (
+        <ChangePasswordForm
+          userId={selectedUserForPassword.id}
+          userEmail={selectedUserForPassword.email}
+          open={showChangePasswordForm}
+          onOpenChange={(open) => {
+            setShowChangePasswordForm(open);
+            if (!open) {
+              setSelectedUserForPassword(null);
+            }
+          }}
+          onSuccess={() => {
+            // No necesita refresh ya que la contraseña no afecta la lista
+            setShowChangePasswordForm(false);
+            setSelectedUserForPassword(null);
+          }}
+        />
       )}
     </div>
   );

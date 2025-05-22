@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 });
     }
 
+    // Check if user is Super Admin to determine if system permissions should be shown
+    const isSuperAdmin = user.roles?.includes('Super Admin') || false;
+    const systemHiddenFilter = isSuperAdmin ? '' : 'WHERE system_hidden = 0';
+    
     const permissions = await executeQuery(`
       SELECT 
         id, 
@@ -24,6 +28,7 @@ export async function GET(request: NextRequest) {
         created_at, 
         updated_at 
       FROM permissions 
+      ${systemHiddenFilter}
       ORDER BY name
     `);
 

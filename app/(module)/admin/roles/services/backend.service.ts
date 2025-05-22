@@ -9,10 +9,11 @@ import {
   handleQueryError,
   handleQuerySuccess
 } from '@/utils/sql';
+import { UserSession } from '@/utils/auth';
 import { RoleType, RoleCreateRequest, RoleUpdateRequest, RoleSearchParams, RoleListResponse } from '../types';
 
 export class RoleBackendService {
-  static async getAll(params: RoleSearchParams = {}): Promise<QueryResult<RoleListResponse>> {
+  static async getAll(params: RoleSearchParams = {}, user?: UserSession): Promise<QueryResult<RoleListResponse>> {
     try {
       const {
         search = '',
@@ -26,6 +27,12 @@ export class RoleBackendService {
       // Construir condiciones WHERE
       const conditions: Record<string, any> = {};
       if (active !== undefined) conditions['r.active'] = active;
+      
+      // Filter system_hidden roles unless user is Super Admin
+      const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+      if (!isSuperAdmin) {
+        conditions['r.system_hidden'] = false;
+      }
 
       const { whereClause, params: whereParams } = buildWhereClause(conditions, 'AND');
       
@@ -441,9 +448,12 @@ export class RoleBackendService {
     }
   }
 
-  static async getPermissions(): Promise<QueryResult<{ id: number; permission_key: string; display_name: string; module: string }[]>> {
+  static async getPermissions(user?: UserSession): Promise<QueryResult<{ id: number; permission_key: string; display_name: string; module: string }[]>> {
     try {
-      const query = 'SELECT id, permission_key, display_name, module FROM permissions WHERE active = 1 ORDER BY module, display_name';
+      const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+      const systemHiddenFilter = isSuperAdmin ? '' : 'AND system_hidden = 0';
+      
+      const query = `SELECT id, permission_key, display_name, module FROM permissions WHERE active = 1 ${systemHiddenFilter} ORDER BY module, display_name`;
       const permissions = await executeQuery(query);
       return handleQuerySuccess(permissions);
     } catch (error) {
