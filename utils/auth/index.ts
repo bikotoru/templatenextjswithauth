@@ -286,117 +286,183 @@ class AuthService {
     }
   }
 
-  // Login de usuario
-  async login(credentials: LoginCredentials): Promise<AuthResult> {
+// Login de usuario - VERSION DIAGNOSTICO
+async login(credentials: LoginCredentials): Promise<AuthResult> {
+  try {
+    const { email, password, organizationId } = credentials;
+
+    console.log('🔍 === INICIO LOGIN DEBUG ===');
+    console.log('🔍 Email:', email);
+    console.log('🔍 Password recibido:', password);
+    console.log('🔍 Password length:', password?.length);
+    console.log('🔍 Password type:', typeof password);
+
+    // Buscar usuario por email
+    const user = await executeQuerySingle<{
+      id: number;
+      email: string;
+      password_hash: string;
+      name: string;
+      avatar?: string;
+      active: boolean;
+    }>(
+      'SELECT id, email, password_hash, name, avatar, active FROM users WHERE email = @email',
+      { email }
+    );
+
+    console.log('🔍 Usuario encontrado:', user ? 'SÍ' : 'NO');
+    if (user) {
+      console.log('🔍 User ID:', user.id);
+      console.log('🔍 User Email:', user.email);
+      console.log('🔍 User Active:', user.active);
+      console.log('🔍 Password Hash en BD:', user.password_hash);
+      console.log('🔍 Hash length:', user.password_hash?.length);
+      console.log('🔍 Hash type:', typeof user.password_hash);
+      
+      // Verificar formato del hash
+      const hashPattern = /^\$2[aby]\$\d{1,2}\$.{53}$/;
+      const isValidHashFormat = hashPattern.test(user.password_hash);
+      console.log('🔍 Formato hash válido:', isValidHashFormat);
+      
+      // Mostrar partes del hash
+      if (user.password_hash) {
+        const hashParts = user.password_hash.split('$');
+        console.log('🔍 Hash parts:', {
+          algorithm: hashParts[1], // debería ser 2a, 2b, o 2y
+          rounds: hashParts[2],    // debería ser 10 normalmente
+          saltAndHash: hashParts[3]?.length // debería ser 53 caracteres
+        });
+      }
+    }
+
+    if (!user || !user.active) {
+      console.log('🔍 === FIN LOGIN DEBUG (Usuario no encontrado/inactivo) ===');
+      return { success: false, error: 'Usuario no encontrado o inactivo' };
+    }
+
+    // TESTS ADICIONALES DE VERIFICACION
+    console.log('🔍 === INICIANDO VERIFICACION PASSWORD ===');
+    
+    // Test 1: Verificación normal
+    console.log('🔍 Test 1: Verificación normal');
     try {
-      const { email, password, organizationId } = credentials;
+      const passwordValid1 = await this.verifyPassword(password, user.password_hash);
+      console.log('🔍 Test 1 resultado:', passwordValid1);
+    } catch (error) {
+      console.log('🔍 Test 1 ERROR:', error);
+    }
 
-      // Buscar usuario por email
-      const user = await executeQuerySingle<{
-        id: number;
-        email: string;
-        password_hash: string;
-        name: string;
-        avatar?: string;
-        active: boolean;
-      }>(
-        'SELECT id, email, password_hash, name, avatar, active FROM users WHERE email = @email',
-        { email }
-      );
+    // Test 2: Verificación directa con bcrypt
+    console.log('🔍 Test 2: Verificación directa bcrypt');
+    try {
+      const bcrypt = require('bcryptjs');
+      const passwordValid2 = await bcrypt.compare(password, user.password_hash);
+      console.log('🔍 Test 2 resultado:', passwordValid2);
+    } catch (error) {
+      console.log('🔍 Test 2 ERROR:', error);
+    }
 
-      if (!user || !user.active) {
-        return { success: false, error: 'Usuario no encontrado o inactivo' };
-      }
+    // Test 3: Verificar que podemos hashear la password
+    console.log('🔍 Test 3: Generando nuevo hash para comparar');
+    try {
+      const newHash = await this.hashPassword(password);
+      console.log('🔍 Test 3 nuevo hash:', newHash);
+      const testCompare = await this.verifyPassword(password, newHash);
+      console.log('🔍 Test 3 verificación nuevo hash:', testCompare);
+    } catch (error) {
+      console.log('🔍 Test 3 ERROR:', error);
+    }
 
-      // Verificar password usando bcrypt
-      const passwordValid = await this.verifyPassword(password, user.password_hash);
+    // Test 4: Verificar caracteres especiales
+    console.log('🔍 Test 4: Análisis de caracteres');
+    console.log('🔍 Password chars:', Array.from(password).map(c => c.charCodeAt(0)));
+    console.log('🔍 Password escaped:', JSON.stringify(password));
 
-      if (!passwordValid) {
-        return { success: false, error: 'Credenciales inválidas' };
-      }
+    // Verificación final
+    const passwordValid = await this.verifyPassword(password, user.password_hash);
+    console.log('🔍 === RESULTADO FINAL VERIFICACION ===');
+    console.log('🔍 Password válido:', passwordValid);
+    console.log('🔍 === FIN LOGIN DEBUG ===');
 
-      // Obtener organizaciones del usuario
-      const organizations = await this.getUserOrganizations(user.id);
+    if (!passwordValid) {
+      return { success: false, error: 'Credenciales inválidas' };
+    }
 
-      if (organizations.length === 0) {
-        return { success: false, error: 'Usuario sin organizaciones asignadas' };
-      }
+    // Resto del código igual...
+    const organizations = await this.getUserOrganizations(user.id);
 
-      // Si tiene múltiples organizaciones y no se especificó una, devolver para selección
-      if (organizations.length > 1 && !organizationId) {
-        return {
-          success: true,
-          requiresOrganizationSelection: true,
-          organizations,
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            avatar: user.avatar,
-            permissions: [],
-            roles: [],
-            organizations
-          }
-        };
-      }
+    if (organizations.length === 0) {
+      return { success: false, error: 'Usuario sin organizaciones asignadas' };
+    }
 
-      // Determinar organización a usar
-      const selectedOrgId = organizationId || organizations[0].id;
-      const selectedOrg = organizations.find(org => org.id === selectedOrgId);
-
-      if (!selectedOrg) {
-        return { success: false, error: 'Organización no válida' };
-      }
-
-      // Verificar si la organización ha expirado (solo para usuarios no Super Admin)
-      const isSuperAdmin = await this.checkIfSuperAdmin(user.id);
-      if (!isSuperAdmin) {
-        const isExpired = await this.checkOrganizationExpired(selectedOrgId);
-        if (isExpired) {
-          return { success: false, error: 'La organización ha expirado. Contacte al administrador.' };
-        }
-      }
-
-      // Obtener permisos y roles para la organización seleccionada
-      const [permissions, roles] = await Promise.all([
-        this.getUserPermissions(user.id, selectedOrgId),
-        this.getUserRoles(user.id, selectedOrgId)
-      ]);
-
-      const userSession: UserSession = {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        permissions,
-        roles,
-        organizations,
-        currentOrganization: selectedOrg
-      };
-
-      // Generar token
-      const token = this.generateToken(userSession);
-
-      // Actualizar último login
-      await executeQuery(
-        'UPDATE users SET updated_at = GETDATE() WHERE id = @id',
-        { id: user.id }
-      );
-
-      // Guardar sesión en BD
-      await this.saveSession(user.id, token, selectedOrgId);
-
+    if (organizations.length > 1 && !organizationId) {
       return {
         success: true,
-        user: userSession,
-        token
+        requiresOrganizationSelection: true,
+        organizations,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          permissions: [],
+          roles: [],
+          organizations
+        }
       };
-
-    } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Error interno del servidor' };
     }
+
+    const selectedOrgId = organizationId || organizations[0].id;
+    const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+
+    if (!selectedOrg) {
+      return { success: false, error: 'Organización no válida' };
+    }
+
+    const isSuperAdmin = await this.checkIfSuperAdmin(user.id);
+    if (!isSuperAdmin) {
+      const isExpired = await this.checkOrganizationExpired(selectedOrgId);
+      if (isExpired) {
+        return { success: false, error: 'La organización ha expirado. Contacte al administrador.' };
+      }
+    }
+
+    const [permissions, roles] = await Promise.all([
+      this.getUserPermissions(user.id, selectedOrgId),
+      this.getUserRoles(user.id, selectedOrgId)
+    ]);
+
+    const userSession: UserSession = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      permissions,
+      roles,
+      organizations,
+      currentOrganization: selectedOrg
+    };
+
+    const token = this.generateToken(userSession);
+
+    await executeQuery(
+      'UPDATE users SET updated_at = GETDATE() WHERE id = @id',
+      { id: user.id }
+    );
+
+    await this.saveSession(user.id, token, selectedOrgId);
+
+    return {
+      success: true,
+      user: userSession,
+      token
+    };
+
+  } catch (error) {
+    console.error('Login error:', error);
+    return { success: false, error: 'Error interno del servidor' };
   }
+}
 
   // Verificar si usuario tiene un permiso específico en una organización
   async hasPermission(userId: number, permission: string, organizationId?: string): Promise<boolean> {
