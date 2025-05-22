@@ -1,0 +1,1 @@
+export { POST } from '@/app/(module)/auth/api/switch-organization/route';

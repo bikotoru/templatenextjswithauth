@@ -3,6 +3,13 @@ import jwt from 'jsonwebtoken';
 import { NextRequest } from 'next/server';
 import { executeQuery, executeQuerySingle } from '@/utils/sql';
 
+export interface Organization {
+  id: string;
+  name: string;
+  logo?: string;
+  rut?: string;
+}
+
 export interface UserSession {
   id: number;
   email: string;
@@ -10,11 +17,14 @@ export interface UserSession {
   avatar?: string;
   permissions: string[];
   roles: string[];
+  organizations?: Organization[];
+  currentOrganization?: Organization;
 }
 
 export interface LoginCredentials {
   email: string;
   password: string;
+  organizationId?: string; // Para cuando ya se ha seleccionado la organización
 }
 
 export interface AuthResult {
@@ -22,6 +32,8 @@ export interface AuthResult {
   user?: UserSession;
   token?: string;
   error?: string;
+  organizations?: Organization[]; // Para cuando el usuario tiene múltiples organizaciones
+  requiresOrganizationSelection?: boolean; // Indica si necesita seleccionar organización
 }
 
 class AuthService {
@@ -110,6 +122,35 @@ class AuthService {
     }
   }
 
+  // Obtener organizaciones de un usuario
+  async getUserOrganizations(userId: number): Promise<Organization[]> {
+    try {
+      const organizations = await executeQuery<{
+        id: string;
+        name: string;
+        logo?: string;
+        rut?: string;
+      }>(
+        `SELECT o.id, o.name, o.logo, o.rut
+         FROM organizations o
+         INNER JOIN user_organizations uo ON o.id = uo.organization_id
+         WHERE uo.user_id = @userId AND uo.active = 1 AND o.active = 1
+         ORDER BY o.name`,
+        { userId }
+      );
+
+      return organizations.map(org => ({
+        id: org.id,
+        name: org.name,
+        logo: org.logo,
+        rut: org.rut
+      }));
+    } catch (error) {
+      console.error('Error getting user organizations:', error);
+      return [];
+    }
+  }
+
   // Obtener roles de usuario para una organización específica
   async getUserRoles(userId: number, organizationId?: string): Promise<string[]> {
     try {
@@ -143,7 +184,7 @@ class AuthService {
   // Login de usuario
   async login(credentials: LoginCredentials): Promise<AuthResult> {
     try {
-      const { email, password } = credentials;
+      const { email, password, organizationId } = credentials;
 
       // Buscar usuario por email
       const user = await executeQuerySingle<{
@@ -169,10 +210,43 @@ class AuthService {
         return { success: false, error: 'Credenciales inválidas' };
       }
 
-      // Obtener permisos y roles
+      // Obtener organizaciones del usuario
+      const organizations = await this.getUserOrganizations(user.id);
+
+      if (organizations.length === 0) {
+        return { success: false, error: 'Usuario sin organizaciones asignadas' };
+      }
+
+      // Si tiene múltiples organizaciones y no se especificó una, devolver para selección
+      if (organizations.length > 1 && !organizationId) {
+        return {
+          success: true,
+          requiresOrganizationSelection: true,
+          organizations,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            avatar: user.avatar,
+            permissions: [],
+            roles: [],
+            organizations
+          }
+        };
+      }
+
+      // Determinar organización a usar
+      const selectedOrgId = organizationId || organizations[0].id;
+      const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+
+      if (!selectedOrg) {
+        return { success: false, error: 'Organización no válida' };
+      }
+
+      // Obtener permisos y roles para la organización seleccionada
       const [permissions, roles] = await Promise.all([
-        this.getUserPermissions(user.id),
-        this.getUserRoles(user.id)
+        this.getUserPermissions(user.id, selectedOrgId),
+        this.getUserRoles(user.id, selectedOrgId)
       ]);
 
       const userSession: UserSession = {
@@ -181,7 +255,9 @@ class AuthService {
         name: user.name,
         avatar: user.avatar,
         permissions,
-        roles
+        roles,
+        organizations,
+        currentOrganization: selectedOrg
       };
 
       // Generar token
@@ -193,14 +269,8 @@ class AuthService {
         { id: user.id }
       );
 
-      // Opcional: Guardar sesión en BD (usar primera organización por defecto)
-      const firstOrg = await executeQuerySingle<{ organization_id: string }>(
-        'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId AND active = 1',
-        { userId: user.id }
-      );
-      if (firstOrg) {
-        await this.saveSession(user.id, token, firstOrg.organization_id);
-      }
+      // Guardar sesión en BD
+      await this.saveSession(user.id, token, selectedOrgId);
 
       return {
         success: true,
@@ -405,5 +475,8 @@ export const verifyAuthFromRequest = (request: NextRequest) => authService.verif
 export const logout = (token: string) => authService.logout(token);
 export const cleanExpiredSessions = () => authService.cleanExpiredSessions();
 export const invalidateUserSessions = (userId: number) => authService.invalidateUserSessions(userId);
+export const getUserOrganizations = (userId: number) => authService.getUserOrganizations(userId);
+export const getUserPermissions = (userId: number, organizationId?: string) => authService.getUserPermissions(userId, organizationId);
+export const getUserRoles = (userId: number, organizationId?: string) => authService.getUserRoles(userId, organizationId);
 
 export default authService;

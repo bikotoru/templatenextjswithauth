@@ -9,7 +9,9 @@
       "Bash(node:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(timeout 10s npm run dev)",
+      "Bash(true)"
     ],
     "deny": []
   }

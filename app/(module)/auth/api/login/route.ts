@@ -24,13 +24,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Intentar login
-    const result = await login({ email, password });
+    const { organizationId } = body; // Agregar organizationId del request
+    const result = await login({ email, password, organizationId });
 
     if (!result.success) {
       return NextResponse.json(
         { success: false, error: result.error },
         { status: 401 }
       );
+    }
+
+    // Si requiere selección de organización, devolver sin token
+    if (result.requiresOrganizationSelection) {
+      return NextResponse.json({
+        success: true,
+        requiresOrganizationSelection: true,
+        organizations: result.organizations,
+        user: result.user
+      });
     }
 
     // Login exitoso - crear response con cookie

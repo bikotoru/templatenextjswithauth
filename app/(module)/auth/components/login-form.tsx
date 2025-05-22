@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
+import OrganizationSelector from './organization-selector';
+import { Organization } from '@/utils/auth';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -27,6 +30,9 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showOrgSelector, setShowOrgSelector] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [pendingUser, setPendingUser] = useState<{email: string; name: string} | null>(null);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -46,19 +52,28 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
       const data = await response.json();
 
-      if (data.success && data.user) {
-        // Actualizar el contexto de autenticación con los datos del usuario
-        login(data.user);
-        
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          router.push('/dashboard');
+      if (data.success) {
+        if (data.requiresOrganizationSelection) {
+          // El usuario tiene múltiples organizaciones, mostrar selector
+          setOrganizations(data.organizations);
+          setPendingUser(data.user);
+          setShowOrgSelector(true);
+          setIsLoading(false);
+          return;
+        } else if (data.user) {
+          // Login completo con organización única o ya seleccionada
+          login(data.user);
+          
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push('/dashboard');
+          }
         }
       } else {
         setError(data.error || 'Error en el login');
       }
-    } catch (error) {
+    } catch {
       setError('Error de conexión');
     } finally {
       setIsLoading(false);
@@ -86,9 +101,64 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setPassword(password);
   };
 
+  const handleOrganizationSelect = async (organizationId: string) => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: pendingUser?.email, 
+          password, 
+          organizationId 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        login(data.user);
+        
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        setError(data.error || 'Error seleccionando organización');
+        setShowOrgSelector(false);
+      }
+    } catch {
+      setError('Error de conexión');
+      setShowOrgSelector(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Si necesita seleccionar organización, mostrar el selector
+  if (showOrgSelector && organizations.length > 0 && pendingUser) {
+    return (
+      <OrganizationSelector
+        organizations={organizations}
+        user={pendingUser}
+        onSelectOrganization={handleOrganizationSelect}
+        isLoading={isLoading}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6">
+        {/* Theme Toggle */}
+        <div className="flex justify-end">
+          <ThemeToggle />
+        </div>
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Iniciar Sesión</CardTitle>

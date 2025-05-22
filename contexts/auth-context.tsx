@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { UserSession } from '@/utils/auth';
+import { UserSession, Organization } from '@/utils/auth';
 
 interface AuthContextType {
   user: UserSession | null;
@@ -11,6 +11,8 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   refreshUser: () => Promise<void>;
+  switchOrganization: (organizationId: string) => Promise<boolean>;
+  currentOrganization: Organization | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,6 +81,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchUser();
   };
 
+  const switchOrganization = async (organizationId: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/switch-organization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ organizationId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUser(data.user);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Error switching organization:', error);
+      return false;
+    }
+  };
+
+  const currentOrganization = user?.currentOrganization || null;
+
   const value: AuthContextType = {
     user,
     loading,
@@ -87,6 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     hasPermission,
     hasRole,
     refreshUser,
+    switchOrganization,
+    currentOrganization,
   };
 
   return (

@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { OrganizationSwitcher } from '@/components/organization-switcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,10 +43,9 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, logout, hasPermission, loading } = useAuth();
+  const { user, logout, hasPermission, loading, currentOrganization } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const menuItems: MenuItem[] = [
     {
@@ -203,22 +204,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           {/* Top Bar */}
-          <header className="h-16 border-b bg-white flex items-center justify-between px-6">
+          <header className="h-16 border-b bg-background flex items-center justify-between px-6">
             <div className="flex items-center space-x-4">
               <SidebarTrigger className="lg:hidden">
                 <Menu className="h-6 w-6" />
               </SidebarTrigger>
-              <h1 className="text-xl font-semibold">
-                {pathname === '/dashboard' && 'Dashboard'}
-                {pathname.startsWith('/admin/users') && 'Gestión de Usuarios'}
-                {pathname.startsWith('/admin/roles') && 'Gestión de Roles'}
-                {pathname.startsWith('/admin/permissions') && 'Gestión de Permisos'}
-                {pathname.startsWith('/cv-manager') && 'CV Manager'}
-                {pathname.startsWith('/cv-chat') && 'CV Chat'}
-              </h1>
+              <div>
+                <h1 className="text-xl font-semibold">
+                  {pathname === '/dashboard' && 'Dashboard'}
+                  {pathname.startsWith('/admin/users') && 'Gestión de Usuarios'}
+                  {pathname.startsWith('/admin/roles') && 'Gestión de Roles'}
+                  {pathname.startsWith('/admin/permissions') && 'Gestión de Permisos'}
+                  {pathname.startsWith('/cv-manager') && 'CV Manager'}
+                  {pathname.startsWith('/cv-chat') && 'CV Chat'}
+                </h1>
+                {currentOrganization && (
+                  <p className="text-sm text-muted-foreground">
+                    {currentOrganization.name}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center space-x-4">
+              <OrganizationSwitcher />
+              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -238,6 +248,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       <p className="text-xs leading-none text-muted-foreground">
                         Roles: {user.roles.join(', ')}
                       </p>
+                      {currentOrganization && (
+                        <p className="text-xs leading-none text-muted-foreground">
+                          Org: {currentOrganization.name}
+                        </p>
+                      )}
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -251,7 +266,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-auto bg-gray-50 p-6">
+          <main className="flex-1 overflow-auto bg-muted/30 p-6">
             {children}
           </main>
         </div>
