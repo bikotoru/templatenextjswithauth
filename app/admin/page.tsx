@@ -12,7 +12,8 @@ import {
   Settings,
   ArrowRight,
   Database,
-  Activity
+  Activity,
+  Building2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -46,6 +47,15 @@ export default function AdminPage() {
       permission: 'permissions:view',
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
+    },
+    {
+      title: 'Gestión de Organizaciones',
+      description: 'Administrar organizaciones del sistema',
+      icon: Building2,
+      href: '/admin/organizations',
+      permission: 'organizations:view_all',
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
     },
   ];
 

@@ -63,11 +63,9 @@ export async function GET(
       userInCurrentOrg = true; // Super Admin can manage any user
     }
 
-    // Solo puede cambiar contraseña si:
-    // 1. El usuario no está en múltiples organizaciones
-    // 2. El usuario pertenece a la organización del admin actual
-    // 3. O es Super Admin
-    const canChangePassword = !isMultiOrg && userInCurrentOrg;
+    // Super Admin puede cambiar cualquier contraseña globalmente
+    // Otros admins solo pueden cambiar contraseñas de usuarios en su organización y que no sean multi-org
+    const canChangePassword = isSuperAdmin || (!isMultiOrg && userInCurrentOrg);
 
     return NextResponse.json({
       success: true,
@@ -75,8 +73,9 @@ export async function GET(
         canChangePassword,
         isMultiOrg,
         userInCurrentOrg,
+        isSuperAdmin,
         reason: !canChangePassword 
-          ? (isMultiOrg ? 'Usuario pertenece a múltiples organizaciones' : 'Usuario no pertenece a su organización')
+          ? (isMultiOrg ? 'Usuario pertenece a múltiples organizaciones (solo Super Admin puede resetear)' : 'Usuario no pertenece a su organización')
           : null
       }
     });

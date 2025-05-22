@@ -78,18 +78,21 @@ export async function PUT(
     }
 
     // 4. Validar que puede cambiar la contraseña
-    if (isMultiOrg && !isSuperAdmin) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'No puede cambiar la contraseña de un usuario que pertenece a múltiples organizaciones' 
-      }, { status: 403 });
-    }
+    // Super Admin puede cambiar cualquier contraseña globalmente
+    if (!isSuperAdmin) {
+      if (isMultiOrg) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'No puede cambiar la contraseña de un usuario que pertenece a múltiples organizaciones. Solo Super Admin puede hacerlo.' 
+        }, { status: 403 });
+      }
 
-    if (!userInCurrentOrg) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'El usuario no pertenece a su organización' 
-      }, { status: 403 });
+      if (!userInCurrentOrg) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'El usuario no pertenece a su organización' 
+        }, { status: 403 });
+      }
     }
 
     // 5. Cambiar la contraseña
@@ -122,6 +125,8 @@ export async function PUT(
         targetUserEmail: targetUser.email,
         adminEmail: user.email,
         isMultiOrg,
+        isSuperAdmin,
+        globalReset: isSuperAdmin && isMultiOrg,
         timestamp: new Date().toISOString()
       }));
       logActivityRequest.input('createdById', user.id);

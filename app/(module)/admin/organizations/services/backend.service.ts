@@ -391,4 +391,98 @@ export class OrganizationBackendService {
       return handleQueryError(error);
     }
   }
+
+  static async getOrganizationUsers(organizationId: string, user?: UserSession): Promise<QueryResult<any[]>> {
+    try {
+      // Solo Super Admin puede ver usuarios de organizaciones
+      const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+      if (!isSuperAdmin) {
+        return { success: false, error: 'Solo Super Admin puede ver usuarios de organizaciones' };
+      }
+
+      const query = `
+        SELECT 
+          u.id,
+          u.email,
+          u.name,
+          u.avatar,
+          u.active,
+          u.created_at,
+          u.updated_at,
+          uo.joined_at,
+          STUFF((
+            SELECT ', ' + r.name
+            FROM user_role_assignments ura
+            JOIN roles r ON ura.role_id = r.id
+            WHERE ura.user_id = u.id AND ura.organization_id = @organizationId
+            FOR XML PATH('')
+          ), 1, 2, '') as roles_string
+        FROM users u
+        INNER JOIN user_organizations uo ON u.id = uo.user_id
+        WHERE uo.organization_id = @organizationId 
+          AND uo.active = 1
+        ORDER BY uo.joined_at DESC
+      `;
+
+      const users = await executeQuery<any>(query, { organizationId });
+
+      // Procesar los resultados para incluir roles como array
+      const processedUsers = users.map(user => ({
+        ...user,
+        roles: user.roles_string ? user.roles_string.split(', ') : []
+      }));
+
+      return handleQuerySuccess(processedUsers);
+    } catch (error) {
+      return handleQueryError(error);
+    }
+  }
+
+  static async assignUserToOrganization(organizationId: string, userId: number, currentUserId: number): Promise<QueryResult<boolean>> {
+    try {
+      return await executeTransaction(async (transaction) => {
+        // Verificar si el usuario ya está en la organización
+        const checkQuery = `
+          SELECT id, active 
+          FROM user_organizations 
+          WHERE user_id = @userId AND organization_id = @organizationId
+        `;
+
+        const request = transaction.request();
+        request.input('userId', userId);
+        request.input('organizationId', organizationId);
+        request.input('currentUserId', currentUserId);
+
+        const existing = await request.query(checkQuery);
+
+        if (existing.recordset.length > 0) {
+          if (existing.recordset[0].active) {
+            return { success: false, error: 'El usuario ya pertenece a esta organización' };
+          } else {
+            // Reactivar la relación
+            const updateQuery = `
+              UPDATE user_organizations 
+              SET active = 1, 
+                  updated_at = GETDATE(),
+                  updated_by_id = @currentUserId
+              WHERE user_id = @userId AND organization_id = @organizationId
+            `;
+            await request.query(updateQuery);
+            return true;
+          }
+        }
+
+        // Insertar nueva relación
+        const insertQuery = `
+          INSERT INTO user_organizations (user_id, organization_id, joined_at, created_at, updated_at, created_by_id, updated_by_id)
+          VALUES (@userId, @organizationId, GETDATE(), GETDATE(), GETDATE(), @currentUserId, @currentUserId)
+        `;
+
+        await request.query(insertQuery);
+        return true;
+      });
+    } catch (error) {
+      return handleQueryError(error);
+    }
+  }
 }

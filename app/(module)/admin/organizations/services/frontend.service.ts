@@ -8,7 +8,7 @@ import {
 } from '../types';
 
 export class OrganizationFrontendService {
-  private static baseUrl = '/admin/organizations/api';
+  private static baseUrl = '/api/admin/organizations';
 
   static async getAll(params: OrganizationSearchParams = {}): Promise<OrganizationListResponse> {
     const searchParams = new URLSearchParams();
@@ -109,7 +109,7 @@ export class OrganizationFrontendService {
   }
 
   static async getStats(): Promise<OrganizationStatsResponse> {
-    const response = await fetch(`${this.baseUrl}/stats`);
+    const response = await fetch(`/api/admin/organizations/stats`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

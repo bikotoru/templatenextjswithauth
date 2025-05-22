@@ -130,7 +130,7 @@ export default function ChangePasswordForm({
             </p>
             <ul className="list-disc list-inside space-y-1 ml-2">
               <li>Solo se puede cambiar la contraseña de usuarios que pertenezcan únicamente a su organización</li>
-              <li>Los usuarios en múltiples organizaciones deben cambiar su propia contraseña</li>
+              <li>Los usuarios en múltiples organizaciones solo pueden ser gestionados por Super Admin</li>
               <li>Esto protege la seguridad de otras organizaciones</li>
             </ul>
           </div>
