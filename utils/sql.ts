@@ -37,14 +37,32 @@ class SqlDatabase {
   }
 
   private async getConnection(): Promise<sql.ConnectionPool> {
-    if (!this.pool) {
+    // Verificar si el pool existe y está conectado
+    if (!this.pool || !this.pool.connected) {
       try {
-        console.log('datos:' , this.config);
+        // Cerrar el pool anterior si existe pero no está conectado
+        if (this.pool && !this.pool.connected) {
+          try {
+            await this.pool.close();
+          } catch (e) {
+            // Ignorar errores al cerrar
+          }
+          this.pool = null;
+        }
+        
+        console.log('Creando nueva conexión a la base de datos...');
         this.pool = new sql.ConnectionPool(this.config);
         await this.pool.connect();
         console.log('Database connected successfully');
+        
+        // Configurar evento para reconectar si se pierde la conexión
+        this.pool.on('error', (err) => {
+          console.error('Database pool error:', err);
+          this.pool = null;
+        });
       } catch (error) {
         console.error('Database connection failed:', error);
+        this.pool = null;
         throw new Error(`Database connection failed: ${error}`);
       }
     }
@@ -53,25 +71,39 @@ class SqlDatabase {
 
   async executeQuery<T = any>(
     query: string, 
-    params: Record<string, any> = {}
+    params: Record<string, any> = {},
+    retries: number = 1
   ): Promise<T[]> {
-    try {
-      const pool = await this.getConnection();
-      const request = pool.request();
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const pool = await this.getConnection();
+        const request = pool.request();
 
-      // Agregar parámetros a la consulta
-      Object.entries(params).forEach(([key, value]) => {
-        request.input(key, value);
-      });
+        // Agregar parámetros a la consulta
+        Object.entries(params).forEach(([key, value]) => {
+          request.input(key, value);
+        });
 
-      const result = await request.query(query);
-      return result.recordset;
-    } catch (error) {
-      console.error('Query execution failed:', error);
-      console.error('Query:', query);
-      console.error('Params:', params);
-      throw new Error(`Query execution failed: ${error}`);
+        const result = await request.query(query);
+        return result.recordset;
+      } catch (error: any) {
+        console.error(`Query execution failed (attempt ${attempt + 1}/${retries + 1}):`, error);
+        
+        // Si es un error de conexión y no es el último intento, reintentar
+        if (attempt < retries && (error.code === 'ECONNCLOSED' || error.code === 'ENOTOPEN')) {
+          console.log('Reintentando después de error de conexión...');
+          this.pool = null; // Forzar reconexión
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
+          continue;
+        }
+        
+        console.error('Query:', query);
+        console.error('Params:', params);
+        throw new Error(`Query execution failed: ${error}`);
+      }
     }
+    
+    throw new Error('Query execution failed after all retries');
   }
 
   async executeQuerySingle<T = any>(

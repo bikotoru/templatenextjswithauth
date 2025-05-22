@@ -166,19 +166,62 @@ class AuthService {
   // Obtener organizaciones de un usuario
   async getUserOrganizations(userId: number): Promise<Organization[]> {
     try {
-      const organizations = await executeQuery<{
-        id: string;
-        name: string;
-        logo?: string;
-        rut?: string;
-      }>(
-        `SELECT o.id, o.name, o.logo, o.rut
-         FROM organizations o
-         INNER JOIN user_organizations uo ON o.id = uo.organization_id
-         WHERE uo.user_id = @userId AND uo.active = 1 AND o.active = 1
-         ORDER BY o.name`,
+      // Verificar si es Super Admin
+      const isSuperAdmin = await executeQuerySingle<{ role_count: number }>(
+        `SELECT COUNT(*) as role_count
+         FROM user_role_assignments ur
+         INNER JOIN roles r ON ur.role_id = r.id
+         WHERE ur.user_id = @userId 
+         AND ur.active = 1
+         AND r.name = 'Super Admin'
+         AND r.active = 1`,
         { userId }
       );
+
+      console.log('🔍 getUserOrganizations - Super Admin check:', {
+        userId,
+        isSuperAdmin: isSuperAdmin?.role_count > 0,
+        roleCount: isSuperAdmin?.role_count
+      });
+
+      let organizations;
+      
+      if (isSuperAdmin?.role_count > 0) {
+        // Para Super Admin: obtener TODAS las organizaciones activas
+        organizations = await executeQuery<{
+          id: string;
+          name: string;
+          logo?: string;
+          rut?: string;
+        }>(
+          `SELECT id, name, logo, rut
+           FROM organizations
+           WHERE active = 1
+           ORDER BY name`,
+          {}
+        );
+      } else {
+        // Para usuarios normales: solo organizaciones asignadas
+        organizations = await executeQuery<{
+          id: string;
+          name: string;
+          logo?: string;
+          rut?: string;
+        }>(
+          `SELECT o.id, o.name, o.logo, o.rut
+           FROM organizations o
+           INNER JOIN user_organizations uo ON o.id = uo.organization_id
+           WHERE uo.user_id = @userId AND uo.active = 1 AND o.active = 1
+           ORDER BY o.name`,
+          { userId }
+        );
+      }
+
+      console.log('🔍 getUserOrganizations - Organizations found:', {
+        userId,
+        count: organizations.length,
+        organizations: organizations.slice(0, 3) // Solo mostrar las primeras 3 para debug
+      });
 
       return organizations.map(org => ({
         id: org.id,
@@ -195,27 +238,48 @@ class AuthService {
   // Obtener roles de usuario para una organización específica
   async getUserRoles(userId: number, organizationId?: string): Promise<string[]> {
     try {
-      // Si no se especifica organización, obtener roles de la primera organización del usuario
-      if (!organizationId) {
-        const firstOrg = await executeQuerySingle<{ organization_id: string }>(
-          'SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId',
-          { userId }
-        );
-        if (!firstOrg) return [];
-        organizationId = firstOrg.organization_id;
-      }
-
-      const roles = await executeQuery<{ name: string }>(
+      // Primero verificar si el usuario tiene el rol Super Admin (que es global)
+      const superAdminRole = await executeQuerySingle<{ name: string }>(
         `SELECT r.name
          FROM roles r
          INNER JOIN user_role_assignments ur ON r.id = ur.role_id
          WHERE ur.user_id = @userId 
-         AND ur.organization_id = @organizationId
-         ORDER BY r.name`,
-        { userId, organizationId }
+         AND ur.active = 1
+         AND r.name = 'Super Admin'
+         AND r.active = 1`,
+        { userId }
       );
 
-      return roles.map(r => r.name);
+      const roleNames: string[] = [];
+      
+      // Si es Super Admin, agregarlo a la lista
+      if (superAdminRole) {
+        roleNames.push(superAdminRole.name);
+      }
+
+      // Si se especifica una organización, obtener roles específicos de esa organización
+      if (organizationId) {
+        const orgRoles = await executeQuery<{ name: string }>(
+          `SELECT r.name
+           FROM roles r
+           INNER JOIN user_role_assignments ur ON r.id = ur.role_id
+           WHERE ur.user_id = @userId 
+           AND ur.organization_id = @organizationId
+           AND ur.active = 1
+           AND r.active = 1
+           ORDER BY r.name`,
+          { userId, organizationId }
+        );
+
+        // Agregar roles de la organización (evitando duplicados)
+        orgRoles.forEach(role => {
+          if (!roleNames.includes(role.name)) {
+            roleNames.push(role.name);
+          }
+        });
+      }
+
+      return roleNames;
     } catch (error) {
       console.error('Error getting user roles:', error);
       return [];
@@ -226,9 +290,6 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResult> {
     try {
       const { email, password, organizationId } = credentials;
-
-
-      console.log(await this.hashPassword("Soporte.2019"));
 
       // Buscar usuario por email
       const user = await executeQuerySingle<{

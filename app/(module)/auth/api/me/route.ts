@@ -47,6 +47,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Verificar si es Super Admin
+    const isSuperAdmin = await executeQuerySingle<{ role_count: number }>(
+      `SELECT COUNT(*) as role_count
+       FROM user_role_assignments ur
+       INNER JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = @userId 
+       AND ur.active = 1
+       AND r.name = 'Super Admin'
+       AND r.active = 1`,
+      { userId }
+    );
+
+    const isUserSuperAdmin = isSuperAdmin?.role_count > 0;
+
     // Obtener organizaciones del usuario
     const organizations = await getUserOrganizations(userId);
 
@@ -59,11 +73,35 @@ export async function GET(request: NextRequest) {
     );
 
     const currentOrgId = sessionData?.organization_id;
-    const currentOrganization = currentOrgId 
-      ? organizations.find(org => org.id === currentOrgId)
-      : organizations[0]; // Fallback a la primera organización
+    let currentOrganization = null;
 
-    if (!currentOrganization) {
+    // Si es Super Admin y tiene una organización en la sesión, buscarla directamente
+    if (isUserSuperAdmin && currentOrgId) {
+      const orgData = await executeQuerySingle<any>(
+        `SELECT id, name, logo, rut, active, expires_at 
+         FROM organizations 
+         WHERE id = @organizationId`,
+        { organizationId: currentOrgId }
+      );
+      
+      if (orgData) {
+        currentOrganization = {
+          id: orgData.id,
+          name: orgData.name,
+          logo: orgData.logo,
+          rut: orgData.rut,
+          active: orgData.active,
+          expires_at: orgData.expires_at
+        };
+      }
+    } else {
+      // Para usuarios normales, buscar en sus organizaciones asignadas
+      currentOrganization = currentOrgId 
+        ? organizations.find(org => org.id === currentOrgId)
+        : organizations[0]; // Fallback a la primera organización
+    }
+
+    if (!currentOrganization && !isUserSuperAdmin) {
       return NextResponse.json(
         { success: false, error: 'Usuario sin organizaciones asignadas' },
         { status: 403 }
