@@ -18,6 +18,7 @@ interface DbConfig {
 class SqlDatabase {
   private pool: sql.ConnectionPool | null = null;
   private config: DbConfig;
+  private connecting: Promise<sql.ConnectionPool> | null = null;
 
   constructor() {
     this.config = {
@@ -37,36 +38,60 @@ class SqlDatabase {
   }
 
   private async getConnection(): Promise<sql.ConnectionPool> {
-    // Verificar si el pool existe y está conectado
-    if (!this.pool || !this.pool.connected) {
-      try {
-        // Cerrar el pool anterior si existe pero no está conectado
-        if (this.pool && !this.pool.connected) {
-          try {
-            await this.pool.close();
-          } catch (e) {
-            // Ignorar errores al cerrar
-          }
-          this.pool = null;
-        }
-        
-        console.log('Creando nueva conexión a la base de datos...');
-        this.pool = new sql.ConnectionPool(this.config);
-        await this.pool.connect();
-        console.log('Database connected successfully');
-        
-        // Configurar evento para reconectar si se pierde la conexión
-        this.pool.on('error', (err) => {
-          console.error('Database pool error:', err);
-          this.pool = null;
-        });
-      } catch (error) {
-        console.error('Database connection failed:', error);
-        this.pool = null;
-        throw new Error(`Database connection failed: ${error}`);
-      }
+    // Si ya hay una conexión activa, devolverla
+    if (this.pool && this.pool.connected) {
+      return this.pool;
     }
-    return this.pool;
+
+    // Si ya se está conectando, esperar a que termine
+    if (this.connecting) {
+      return await this.connecting;
+    }
+
+    // Crear nueva conexión
+    this.connecting = this.createConnection();
+    
+    try {
+      const pool = await this.connecting;
+      this.connecting = null;
+      return pool;
+    } catch (error) {
+      this.connecting = null;
+      throw error;
+    }
+  }
+
+  private async createConnection(): Promise<sql.ConnectionPool> {
+    try {
+      // Cerrar el pool anterior si existe
+      if (this.pool) {
+        try {
+          await this.pool.close();
+        } catch (e) {
+          // Ignorar errores al cerrar
+        }
+        this.pool = null;
+      }
+      
+      console.log('Creando nueva conexión a la base de datos...');
+      this.pool = new sql.ConnectionPool(this.config);
+      
+      // Configurar evento para reconectar si se pierde la conexión
+      this.pool.on('error', (err) => {
+        console.error('Database pool error:', err);
+        this.pool = null;
+        this.connecting = null;
+      });
+      
+      await this.pool.connect();
+      console.log('Database connected successfully');
+      
+      return this.pool;
+    } catch (error) {
+      console.error('Database connection failed:', error);
+      this.pool = null;
+      throw new Error(`Database connection failed: ${error}`);
+    }
   }
 
   async executeQuery<T = any>(
@@ -90,9 +115,15 @@ class SqlDatabase {
         console.error(`Query execution failed (attempt ${attempt + 1}/${retries + 1}):`, error);
         
         // Si es un error de conexión y no es el último intento, reintentar
-        if (attempt < retries && (error.code === 'ECONNCLOSED' || error.code === 'ENOTOPEN')) {
+        if (attempt < retries && (
+          error.code === 'ECONNCLOSED' || 
+          error.code === 'ENOTOPEN' || 
+          error.message?.includes('Connection is closed') ||
+          error.message?.includes('Cannot read properties of null')
+        )) {
           console.log('Reintentando después de error de conexión...');
           this.pool = null; // Forzar reconexión
+          this.connecting = null; // Limpiar estado de conexión
           await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
           continue;
         }
@@ -170,6 +201,7 @@ class SqlDatabase {
       try {
         await this.pool.close();
         this.pool = null;
+        this.connecting = null;
         console.log('Database connection closed');
       } catch (error) {
         console.error('Error closing database connection:', error);

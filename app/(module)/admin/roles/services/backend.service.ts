@@ -141,12 +141,12 @@ export class RoleBackendService {
       }
 
       // Obtener permisos del rol con IDs
-      const permissions = await executeQuery<{ id: number; permission_key: string }>(
-        `SELECT p.id, p.permission_key
+      const permissions = await executeQuery<{ id: number; name: string }>(
+        `SELECT p.id, p.name
          FROM permissions p
          INNER JOIN role_permission_assignments rp ON p.id = rp.permission_id
          WHERE rp.role_id = @roleId AND rp.active = 1 AND p.active = 1
-         ORDER BY p.permission_key`,
+         ORDER BY p.name`,
         { roleId: id }
       );
 
@@ -162,7 +162,7 @@ export class RoleBackendService {
 
       const roleWithDetails: RoleType = {
         ...role,
-        permissions: permissions.map(p => p.permission_key),
+        permissions: permissions.map(p => p.name),
         permission_ids: permissions.map(p => p.id),
         user_details: users
       };
@@ -448,12 +448,12 @@ export class RoleBackendService {
     }
   }
 
-  static async getPermissions(user?: UserSession): Promise<QueryResult<{ id: number; permission_key: string; display_name: string; module: string }[]>> {
+  static async getPermissions(user?: UserSession): Promise<QueryResult<{ id: number; name: string; description: string; category: string }[]>> {
     try {
       const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
       const systemHiddenFilter = isSuperAdmin ? '' : 'AND system_hidden = 0';
       
-      const query = `SELECT id, permission_key, display_name, module FROM permissions WHERE active = 1 ${systemHiddenFilter} ORDER BY module, display_name`;
+      const query = `SELECT id, name, description, category FROM permissions WHERE active = 1 ${systemHiddenFilter} ORDER BY category, name`;
       const permissions = await executeQuery(query);
       return handleQuerySuccess(permissions);
     } catch (error) {
