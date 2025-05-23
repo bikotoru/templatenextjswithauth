@@ -16,6 +16,7 @@ GO
 IF OBJECT_ID('tr_variable_values_update', 'TR') IS NOT NULL DROP TRIGGER tr_variable_values_update;
 IF OBJECT_ID('tr_incremental_config_update', 'TR') IS NOT NULL DROP TRIGGER tr_incremental_config_update;
 IF OBJECT_ID('tr_system_variables_update', 'TR') IS NOT NULL DROP TRIGGER tr_system_variables_update;
+IF OBJECT_ID('tr_system_variable_groups_update', 'TR') IS NOT NULL DROP TRIGGER tr_system_variable_groups_update;
 IF OBJECT_ID('tr_activity_logs_update', 'TR') IS NOT NULL DROP TRIGGER tr_activity_logs_update;
 IF OBJECT_ID('tr_user_sessions_update', 'TR') IS NOT NULL DROP TRIGGER tr_user_sessions_update;
 IF OBJECT_ID('tr_user_organizations_update', 'TR') IS NOT NULL DROP TRIGGER tr_user_organizations_update;
@@ -30,6 +31,7 @@ IF OBJECT_ID('system_variable_validations', 'U') IS NOT NULL DROP TABLE system_v
 IF OBJECT_ID('system_variable_values', 'U') IS NOT NULL DROP TABLE system_variable_values;
 IF OBJECT_ID('system_variable_incremental_config', 'U') IS NOT NULL DROP TABLE system_variable_incremental_config;
 IF OBJECT_ID('system_variables', 'U') IS NOT NULL DROP TABLE system_variables;
+IF OBJECT_ID('system_variable_groups', 'U') IS NOT NULL DROP TABLE system_variable_groups;
 IF OBJECT_ID('user_role_assignments', 'U') IS NOT NULL DROP TABLE user_role_assignments;
 IF OBJECT_ID('role_permission_assignments', 'U') IS NOT NULL DROP TABLE role_permission_assignments;
 IF OBJECT_ID('user_permission_assignments', 'U') IS NOT NULL DROP TABLE user_permission_assignments;
@@ -344,6 +346,32 @@ GO
 -- SISTEMA DE VARIABLES DEL SISTEMA
 -- ============================================================================
 
+-- Tabla de grupos para organizar variables del sistema
+CREATE TABLE system_variable_groups (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) NOT NULL,
+    description NVARCHAR(500) NULL,
+    display_order INT DEFAULT 0,
+    active BIT DEFAULT 1,
+    
+    -- Campos de auditoría
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    created_by_id INT NULL,
+    updated_by_id INT NULL,
+    
+    FOREIGN KEY (created_by_id) REFERENCES users(id),
+    FOREIGN KEY (updated_by_id) REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT UK_system_variable_groups_name UNIQUE (name),
+    
+    -- Índices
+    INDEX IX_system_variable_groups_active (active),
+    INDEX IX_system_variable_groups_order (display_order)
+);
+GO
+
 -- Tabla principal de variables del sistema
 CREATE TABLE system_variables (
     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -353,6 +381,14 @@ CREATE TABLE system_variables (
     description NVARCHAR(1000) NULL,
     variable_type NVARCHAR(50) NOT NULL, -- 'incremental', 'text', 'number', 'date', 'boolean', 'json'
     category NVARCHAR(50) NOT NULL, -- 'numbering', 'limits', 'settings', 'dates', 'business_rules'
+    
+    -- Nuevos campos para el sistema mejorado
+    group_id INT NULL, -- Referencia al grupo
+    is_editable BIT DEFAULT 0, -- Si la variable puede ser editada por organizaciones
+    edit_permission NVARCHAR(100) NULL, -- Permiso específico para editar esta variable
+    system_level_only BIT DEFAULT 0, -- Si solo se puede crear a nivel SYSTEM
+    
+    -- Campos existentes
     is_required BIT DEFAULT 0,
     is_system BIT DEFAULT 0, -- Variables del sistema que no se pueden eliminar
     is_active BIT DEFAULT 1,
@@ -365,6 +401,7 @@ CREATE TABLE system_variables (
     updated_by_id INT NULL,
     
     FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (group_id) REFERENCES system_variable_groups(id),
     FOREIGN KEY (created_by_id) REFERENCES users(id),
     FOREIGN KEY (updated_by_id) REFERENCES users(id),
     
@@ -373,10 +410,13 @@ CREATE TABLE system_variables (
     
     -- Índices
     INDEX IX_system_variables_org_id (organization_id),
+    INDEX IX_system_variables_group_id (group_id),
     INDEX IX_system_variables_key (variable_key),
     INDEX IX_system_variables_type (variable_type),
     INDEX IX_system_variables_category (category),
-    INDEX IX_system_variables_active (is_active)
+    INDEX IX_system_variables_active (is_active),
+    INDEX IX_system_variables_editable (is_editable),
+    INDEX IX_system_variables_system_level (system_level_only)
 );
 GO
 
@@ -645,6 +685,18 @@ BEGIN
 END;
 GO
 
+-- Trigger para system_variable_groups
+CREATE TRIGGER tr_system_variable_groups_update
+ON system_variable_groups
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE system_variable_groups 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
 -- Trigger para system_variables
 CREATE TRIGGER tr_system_variables_update
 ON system_variables
@@ -785,7 +837,8 @@ INSERT INTO permissions (name, description, category, organization_id, system_hi
 ('system_variables:create', 'Crear variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
 ('system_variables:edit', 'Editar variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
 ('system_variables:delete', 'Eliminar variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('system_variables:generate', 'Generar números incrementales', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+('system_variables:generate', 'Generar números incrementales', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:groups:manage', 'Gestionar grupos de variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
 
 -- Asignar permisos de variables del sistema al rol Super Admin
 INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
@@ -864,11 +917,27 @@ VALUES (@demo_admin_id, @admin_role_id, @demo_org_id, GETDATE(), 1, GETDATE(), G
 -- VARIABLES DEL SISTEMA DE EJEMPLO
 -- ============================================================================
 
+-- Crear grupos de variables por defecto
+DECLARE @group_numbering_id INT, @group_business_id INT, @group_limits_id INT;
+
+INSERT INTO system_variable_groups (name, description, display_order, created_by_id, updated_by_id) VALUES
+('Numeración', 'Variables para numeración automática de documentos', 1, @superadmin_id, @superadmin_id);
+SET @group_numbering_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_groups (name, description, display_order, created_by_id, updated_by_id) VALUES
+('Reglas de Negocio', 'Configuraciones y límites del negocio', 2, @superadmin_id, @superadmin_id);
+SET @group_business_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_groups (name, description, display_order, created_by_id, updated_by_id) VALUES
+('Límites y Controles', 'Variables de control y límites operativos', 3, @superadmin_id, @superadmin_id);
+SET @group_limits_id = SCOPE_IDENTITY();
+
 -- Variable incremental para números de orden de compra
 DECLARE @purchase_order_var_id INT;
 
 INSERT INTO system_variables (
     organization_id, variable_key, display_name, description, variable_type, category, 
+    group_id, is_editable, edit_permission, system_level_only,
     is_required, is_system, created_by_id, updated_by_id
 ) 
 VALUES (
@@ -878,6 +947,10 @@ VALUES (
     'Numeración automática para órdenes de compra con formato OC-XXXXXXXX',
     'incremental', 
     'numbering', 
+    @group_numbering_id,
+    1, -- Es editable (organizaciones pueden cambiar prefijo/sufijo)
+    'system_variable:PURCHASE_ORDER_NUMBER:edit',
+    0, -- No es solo para SYSTEM
     1, 
     0,
     @superadmin_id, 
@@ -898,6 +971,7 @@ DECLARE @company_slogan_var_id INT;
 
 INSERT INTO system_variables (
     organization_id, variable_key, display_name, description, variable_type, category, 
+    group_id, is_editable, edit_permission, system_level_only,
     is_required, is_system, default_value, created_by_id, updated_by_id
 ) 
 VALUES (
@@ -907,6 +981,10 @@ VALUES (
     'Frase representativa de la empresa',
     'text', 
     'settings', 
+    @group_business_id,
+    1, -- Es editable
+    'system_variable:COMPANY_SLOGAN:edit',
+    0, -- No es solo para SYSTEM
     0, 
     0,
     'Excelencia en cada proyecto',
@@ -924,6 +1002,7 @@ DECLARE @max_purchase_var_id INT;
 
 INSERT INTO system_variables (
     organization_id, variable_key, display_name, description, variable_type, category, 
+    group_id, is_editable, edit_permission, system_level_only,
     is_required, is_system, default_value, created_by_id, updated_by_id
 ) 
 VALUES (
@@ -933,6 +1012,10 @@ VALUES (
     'Monto máximo permitido para órdenes de compra sin autorización especial',
     'number', 
     'limits', 
+    @group_limits_id,
+    1, -- Es editable
+    'system_variable:MAX_PURCHASE_AMOUNT:edit',
+    0, -- No es solo para SYSTEM
     1, 
     0,
     '1000000',
@@ -950,6 +1033,7 @@ DECLARE @maintenance_mode_var_id INT;
 
 INSERT INTO system_variables (
     organization_id, variable_key, display_name, description, variable_type, category, 
+    group_id, is_editable, edit_permission, system_level_only,
     is_required, is_system, default_value, created_by_id, updated_by_id
 ) 
 VALUES (
@@ -959,6 +1043,10 @@ VALUES (
     'Indica si el sistema está en modo mantenimiento',
     'boolean', 
     'settings', 
+    @group_business_id,
+    1, -- Es editable
+    'system_variable:MAINTENANCE_MODE:edit',
+    0, -- No es solo para SYSTEM
     1, 
     0,
     'false',
@@ -970,6 +1058,37 @@ SET @maintenance_mode_var_id = SCOPE_IDENTITY();
 
 INSERT INTO system_variable_values (system_variable_id, boolean_value, updated_by_id)
 VALUES (@maintenance_mode_var_id, 0, @superadmin_id);
+
+-- ============================================================================
+-- PERMISOS GRANULARES PARA VARIABLES EDITABLES
+-- ============================================================================
+
+-- Crear permisos específicos para cada variable editable
+INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
+('system_variable:PURCHASE_ORDER_NUMBER:edit', 'Editar configuración de numeración de órdenes de compra', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variable:COMPANY_SLOGAN:edit', 'Editar slogan de la empresa', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variable:MAX_PURCHASE_AMOUNT:edit', 'Editar límite máximo de compra', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variable:MAINTENANCE_MODE:edit', 'Cambiar modo mantenimiento', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Asignar estos permisos al rol Admin de la organización demo
+INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @admin_role_id,
+    p.id,
+    @demo_org_id,
+    GETDATE(),
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+FROM permissions p 
+WHERE p.name IN (
+    'system_variable:PURCHASE_ORDER_NUMBER:edit',
+    'system_variable:COMPANY_SLOGAN:edit', 
+    'system_variable:MAX_PURCHASE_AMOUNT:edit',
+    'system_variable:MAINTENANCE_MODE:edit'
+) AND p.organization_id = @demo_org_id;
 
 -- ============================================================================
 -- RESUMEN DE CREACIÓN

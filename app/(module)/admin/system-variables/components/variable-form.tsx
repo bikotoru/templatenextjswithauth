@@ -28,6 +28,10 @@ interface VariableFormData {
   description: string;
   variable_type: VariableType;
   category: VariableCategory;
+  group_id: number | '';
+  is_editable: boolean;
+  edit_permission: string;
+  system_level_only: boolean;
   is_required: boolean;
   is_system: boolean;
   default_value: unknown;
@@ -35,17 +39,22 @@ interface VariableFormData {
 
 interface VariableFormProps {
   variable?: SystemVariable;
+  groups?: Array<{ id: number; name: string; display_order: number }>;
   onSave: (variable: SystemVariable) => void;
   onCancel: () => void;
 }
 
-export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) {
+export function VariableForm({ variable, groups = [], onSave, onCancel }: VariableFormProps) {
   const [formData, setFormData] = useState<VariableFormData>({
     variable_key: '',
     display_name: '',
     description: '',
     variable_type: VariableType.TEXT,
     category: VariableCategory.SETTINGS,
+    group_id: '',
+    is_editable: true,
+    edit_permission: '',
+    system_level_only: false,
     is_required: false,
     is_system: false,
     default_value: null
@@ -72,6 +81,10 @@ export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) 
         description: variable.description || '',
         variable_type: variable.variable_type,
         category: variable.category || VariableCategory.SETTINGS,
+        group_id: variable.group_id || '',
+        is_editable: variable.is_editable,
+        edit_permission: variable.edit_permission || '',
+        system_level_only: variable.system_level_only,
         is_required: variable.is_required,
         is_system: variable.is_system,
         default_value: variable.default_value
@@ -92,6 +105,31 @@ export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) 
       }
     }
   }, [variable]);
+
+  // Generar automáticamente edit_permission basado en variable_key
+  const generateEditPermission = (variableKey: string) => {
+    if (!variableKey.trim()) return '';
+    return `system_variable:${variableKey}:edit`;
+  };
+
+  // Manejar cambios en variable_key
+  const handleVariableKeyChange = (value: string) => {
+    const upperValue = value.toUpperCase();
+    setFormData(prev => ({
+      ...prev,
+      variable_key: upperValue,
+      edit_permission: prev.is_editable ? generateEditPermission(upperValue) : prev.edit_permission
+    }));
+  };
+
+  // Manejar cambios en is_editable
+  const handleEditableChange = (isEditable: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      is_editable: isEditable,
+      edit_permission: isEditable ? generateEditPermission(prev.variable_key) : ''
+    }));
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -235,7 +273,7 @@ export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) 
               <Input
                 id="variable_key"
                 value={formData.variable_key}
-                onChange={(e) => setFormData(prev => ({ ...prev, variable_key: e.target.value.toUpperCase() }))}
+                onChange={(e) => handleVariableKeyChange(e.target.value)}
                 placeholder="Ej: PURCHASE_ORDER_PREFIX"
                 disabled={isEditMode}
                 className={errors.variable_key ? 'border-red-500' : ''}
@@ -306,6 +344,29 @@ export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) 
             </div>
           </div>
 
+          {/* Nuevo campo de Grupo */}
+          {groups.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="group_id">Grupo (Opcional)</Label>
+              <Select 
+                value={formData.group_id.toString()} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, group_id: value ? Number(value) : '' }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin grupo</SelectItem>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id.toString()}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <Switch
@@ -323,6 +384,49 @@ export function VariableForm({ variable, onSave, onCancel }: VariableFormProps) 
               <Label>Variable del Sistema</Label>
             </div>
           </div>
+
+          {/* Nuevos campos de configuración avanzada */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Configuración de Permisos</CardTitle>
+              <CardDescription>
+                Configure quién puede editar esta variable y en qué nivel opera.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.is_editable}
+                    onCheckedChange={handleEditableChange}
+                  />
+                  <Label>Editable por Organizaciones</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.system_level_only}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, system_level_only: checked }))}
+                  />
+                  <Label>Solo Nivel SYSTEM</Label>
+                </div>
+              </div>
+
+              {formData.is_editable && formData.edit_permission && (
+                <div className="space-y-2">
+                  <Label>Permiso de Edición (Generado Automáticamente)</Label>
+                  <Input
+                    value={formData.edit_permission}
+                    readOnly
+                    className="bg-muted"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Este permiso se creará automáticamente para controlar quién puede editar esta variable.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {formData.variable_type !== VariableType.INCREMENTAL && (
             <div className="space-y-2">

@@ -33,19 +33,26 @@ export class SystemVariableBackendService {
   static async getAll(
     organizationId: string, 
     params: VariableSearchParams = {},
-    _user: UserSession // eslint-disable-line @typescript-eslint/no-unused-vars
+    user: UserSession
   ): Promise<QueryResult<VariableListResponse>> {
     try {
       const {
         search,
         category,
         variable_type,
+        group_id,
         is_active,
+        is_editable,
+        system_level_only,
         page = 1,
         pageSize = 20,
         sortBy = 'display_name',
-        sortOrder = 'ASC'
+        sortOrder = 'ASC',
+        group_by = 'none'
       } = params;
+
+      // Verificar si el usuario es Super Admin
+      const isSuperAdmin = user.roles?.includes('Super Admin') || false;
 
       // Construir condiciones WHERE
       const conditions: Record<string, unknown> = {
@@ -54,7 +61,10 @@ export class SystemVariableBackendService {
 
       if (category) conditions['sv.category'] = category;
       if (variable_type) conditions['sv.variable_type'] = variable_type;
+      if (group_id) conditions['sv.group_id'] = group_id;
       if (is_active !== undefined) conditions['sv.is_active'] = is_active;
+      if (is_editable !== undefined) conditions['sv.is_editable'] = is_editable;
+      if (system_level_only !== undefined) conditions['sv.system_level_only'] = system_level_only;
 
       const { whereClause, params: whereParams } = buildWhereClause(conditions, 'AND');
 
@@ -76,6 +86,10 @@ export class SystemVariableBackendService {
       const query = `
         SELECT 
           sv.*,
+          -- Grupo
+          svg.id as group_id,
+          svg.name as group_name,
+          svg.display_order as group_order,
           -- Configuración incremental
           sic.id as inc_id,
           sic.prefix,
@@ -96,6 +110,7 @@ export class SystemVariableBackendService {
           -- Usuario que actualizó
           u_updated.name as updated_by_name
         FROM system_variables sv
+        LEFT JOIN system_variable_groups svg ON sv.group_id = svg.id
         LEFT JOIN system_variable_incremental_config sic ON sv.id = sic.system_variable_id
         LEFT JOIN system_variable_values svv ON sv.id = svv.system_variable_id
         LEFT JOIN users u_created ON sv.created_by_id = u_created.id
@@ -255,17 +270,30 @@ export class SystemVariableBackendService {
         };
       }
 
+      // Verificar permisos: Solo SYSTEM puede crear variables system_level_only
+      const isSuperAdmin = user.roles?.includes('Super Admin') || false;
+      const isSystemOrg = user.currentOrganization.name === 'SYSTEM';
+
+      if (data.system_level_only && (!isSuperAdmin || !isSystemOrg)) {
+        return {
+          success: false,
+          error: 'Solo Super Admin en organización SYSTEM puede crear variables de nivel sistema'
+        };
+      }
+
       const result = await executeTransaction(async (transaction) => {
         // 1. Crear la variable principal
         const insertVariableQuery = `
           INSERT INTO system_variables (
             organization_id, variable_key, display_name, variable_type, 
-            description, category, is_required, created_by_id, updated_by_id
+            description, category, group_id, is_editable, edit_permission, system_level_only,
+            is_required, is_system, default_value, created_by_id, updated_by_id
           )
           OUTPUT INSERTED.id
           VALUES (
             @organizationId, @variableKey, @displayName, @variableType,
-            @description, @category, @isRequired, @userId, @userId
+            @description, @category, @groupId, @isEditable, @editPermission, @systemLevelOnly,
+            @isRequired, @isSystem, @defaultValue, @userId, @userId
           )
         `;
 
@@ -276,7 +304,13 @@ export class SystemVariableBackendService {
           .input('variableType', data.variable_type)
           .input('description', data.description || null)
           .input('category', data.category || null)
+          .input('groupId', data.group_id || null)
+          .input('isEditable', data.is_editable || false)
+          .input('editPermission', data.edit_permission || null)
+          .input('systemLevelOnly', data.system_level_only || false)
           .input('isRequired', data.is_required || false)
+          .input('isSystem', data.is_system || false)
+          .input('defaultValue', data.default_value ? JSON.stringify(data.default_value) : null)
           .input('userId', user.id)
           .query(insertVariableQuery);
 
@@ -349,7 +383,69 @@ export class SystemVariableBackendService {
           }
         }
 
-        // 5. Obtener la variable creada completa
+        // 5. Crear permiso automáticamente si es editable
+        if (data.is_editable && data.edit_permission) {
+          const insertPermissionQuery = `
+            INSERT INTO permissions (
+              name, description, category, organization_id, system_hidden, 
+              active, created_at, updated_at, created_by_id, updated_by_id
+            )
+            VALUES (
+              @permissionName, @permissionDescription, 'system_variables', @organizationId, 0,
+              1, GETDATE(), GETDATE(), @userId, @userId
+            )
+          `;
+
+          await transaction.request()
+            .input('permissionName', data.edit_permission)
+            .input('permissionDescription', `Editar configuración de ${data.display_name}`)
+            .input('organizationId', user.currentOrganization!.id)
+            .input('userId', user.id)
+            .query(insertPermissionQuery);
+        }
+
+        // 6. Si es wizard de incremental con suffix, crear variable suffix
+        let suffixVariableId = null;
+        if (data.create_suffix_variable && data.suffix_variable_key && data.suffix_variable_name) {
+          const insertSuffixQuery = `
+            INSERT INTO system_variables (
+              organization_id, variable_key, display_name, variable_type, 
+              description, category, group_id, is_editable, edit_permission, system_level_only,
+              is_required, is_system, default_value, created_by_id, updated_by_id
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+              @organizationId, @variableKey, @displayName, 'text',
+              @description, @category, @groupId, @isEditable, @editPermission, @systemLevelOnly,
+              0, 0, '', @userId, @userId
+            )
+          `;
+
+          const suffixResult = await transaction.request()
+            .input('organizationId', user.currentOrganization!.id)
+            .input('variableKey', data.suffix_variable_key)
+            .input('displayName', data.suffix_variable_name)
+            .input('description', `Sufijo para ${data.display_name}`)
+            .input('category', data.category || null)
+            .input('groupId', data.group_id || null)
+            .input('isEditable', true)
+            .input('editPermission', `system_variable:${data.suffix_variable_key}:edit`)
+            .input('systemLevelOnly', data.system_level_only || false)
+            .input('userId', user.id)
+            .query(insertSuffixQuery);
+
+          suffixVariableId = suffixResult.recordset[0].id;
+
+          // Crear permiso para la variable suffix
+          await transaction.request()
+            .input('permissionName', `system_variable:${data.suffix_variable_key}:edit`)
+            .input('permissionDescription', `Editar configuración de ${data.suffix_variable_name}`)
+            .input('organizationId', user.currentOrganization!.id)
+            .input('userId', user.id)
+            .query(insertPermissionQuery);
+        }
+
+        // 7. Obtener la variable creada completa
         const result = await this.getById(variableId, user.currentOrganization!.id);
         
         if (result.success && result.data) {
@@ -557,14 +653,41 @@ export class SystemVariableBackendService {
       variable_type: row.variable_type as VariableType,
       description: row.description ? String(row.description) : undefined,
       category: row.category as VariableCategory,
+      
+      // Nuevos campos
+      group_id: row.group_id ? Number(row.group_id) : undefined,
+      is_editable: Boolean(row.is_editable),
+      edit_permission: row.edit_permission ? String(row.edit_permission) : undefined,
+      system_level_only: Boolean(row.system_level_only),
+      
+      // Campos existentes
       is_active: Boolean(row.is_active),
       is_required: Boolean(row.is_required),
       is_system: Boolean(row.is_system),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       created_by_id: Number(row.created_by_id),
-      updated_by_id: Number(row.updated_by_id)
+      updated_by_id: Number(row.updated_by_id),
+      
+      // Campos de auditoría adicionales
+      created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
+      updated_by_name: row.updated_by_name ? String(row.updated_by_name) : undefined
     };
+
+    // Mapear grupo si existe
+    if (row.group_id) {
+      variable.group = {
+        id: Number(row.group_id),
+        name: String(row.group_name),
+        description: undefined,
+        display_order: Number(row.group_order || 0),
+        active: true,
+        created_at: '',
+        updated_at: '',
+        created_by_id: 0,
+        updated_by_id: 0
+      };
+    }
 
     // Mapear configuración incremental si existe
     if (row.inc_id) {

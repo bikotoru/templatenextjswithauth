@@ -38,6 +38,22 @@ export enum ResetFrequency {
 // Interfaces principales
 // =============================================
 
+export interface SystemVariableGroup {
+  id: number;
+  name: string;
+  description?: string;
+  display_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by_id: number;
+  updated_by_id: number;
+  
+  // Relaciones opcionales
+  variables?: SystemVariable[];
+  variable_count?: number;
+}
+
 export interface SystemVariable {
   id: number;
   organization_id: string;
@@ -46,6 +62,14 @@ export interface SystemVariable {
   variable_type: VariableType;
   description?: string;
   category?: VariableCategory;
+  
+  // Nuevos campos para el sistema mejorado
+  group_id?: number;
+  is_editable: boolean;
+  edit_permission?: string;
+  system_level_only: boolean;
+  
+  // Campos existentes
   is_active: boolean;
   is_required: boolean;
   is_system: boolean;
@@ -56,9 +80,14 @@ export interface SystemVariable {
   updated_by_id: number;
   
   // Relaciones opcionales
+  group?: SystemVariableGroup;
   incremental_config?: IncrementalConfig;
   current_value?: VariableValue;
   validation_rules?: VariableValidation[];
+  
+  // Campos de auditoría adicionales
+  created_by_name?: string;
+  updated_by_name?: string;
 }
 
 export interface IncrementalConfig {
@@ -115,12 +144,33 @@ export interface VariableChangeLog {
 // DTOs para requests
 // =============================================
 
+export interface CreateGroupRequest {
+  name: string;
+  description?: string;
+  display_order?: number;
+}
+
+export interface UpdateGroupRequest {
+  name?: string;
+  description?: string;
+  display_order?: number;
+  active?: boolean;
+}
+
 export interface CreateVariableRequest {
   variable_key: string;
   display_name: string;
   variable_type: VariableType;
   description?: string;
   category?: VariableCategory;
+  
+  // Nuevos campos
+  group_id?: number;
+  is_editable?: boolean;
+  edit_permission?: string;
+  system_level_only?: boolean;
+  
+  // Campos existentes
   is_required?: boolean;
   is_system?: boolean;
   default_value?: unknown;
@@ -148,6 +198,11 @@ export interface CreateVariableRequest {
     validation_value: string;
     error_message?: string;
   }[];
+  
+  // Para wizard de incrementales
+  create_suffix_variable?: boolean;
+  suffix_variable_key?: string;
+  suffix_variable_name?: string;
 }
 
 export interface UpdateVariableRequest {
@@ -155,6 +210,13 @@ export interface UpdateVariableRequest {
   display_name?: string;
   description?: string;
   category?: VariableCategory;
+  
+  // Nuevos campos
+  group_id?: number;
+  is_editable?: boolean;
+  edit_permission?: string;
+  
+  // Campos existentes
   is_active?: boolean;
   is_required?: boolean;
   
@@ -191,8 +253,32 @@ export interface GenerateNumberRequest {
 // DTOs para responses
 // =============================================
 
+export interface GroupListResponse {
+  groups: SystemVariableGroup[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface VariableListResponse {
   variables: SystemVariable[];
+  groups?: SystemVariableGroup[];
+  pagination?: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface GroupedVariableListResponse {
+  groups: (SystemVariableGroup & {
+    variables: SystemVariable[];
+  })[];
+  ungrouped_variables: SystemVariable[];
   pagination?: {
     page: number;
     pageSize: number;
@@ -213,19 +299,39 @@ export interface ValidationResult {
   errors: string[];
 }
 
+export interface WizardCreateResponse {
+  success: boolean;
+  main_variable?: SystemVariable;
+  suffix_variable?: SystemVariable;
+  error_message?: string;
+}
+
 // =============================================
 // Parámetros de búsqueda
 // =============================================
+
+export interface GroupSearchParams {
+  search?: string;
+  active?: boolean;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+}
 
 export interface VariableSearchParams {
   search?: string;
   category?: VariableCategory;
   variable_type?: VariableType;
+  group_id?: number;
   is_active?: boolean;
+  is_editable?: boolean;
+  system_level_only?: boolean;
   page?: number;
   pageSize?: number;
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
+  group_by?: 'group' | 'none';
 }
 
 // =============================================

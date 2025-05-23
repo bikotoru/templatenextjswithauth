@@ -494,10 +494,17 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
   // Verificar autenticación desde request
   async verifyAuthFromRequest(request: NextRequest): Promise<UserSession | null> {
     try {
+      console.log('🔍 verifyAuthFromRequest - Starting verification');
       const token = this.extractTokenFromRequest(request);
-      if (!token) return null;
+      console.log('🔍 verifyAuthFromRequest - Token extracted:', token ? 'Found' : 'Not found');
+      console.log('🔍 verifyAuthFromRequest - Token length:', token?.length || 0);
+      if (!token) {
+        console.log('🔍 verifyAuthFromRequest - No token found, returning null');
+        return null;
+      }
 
       // Verificar si el token existe en la base de datos y no ha expirado
+      console.log('🔍 verifyAuthFromRequest - Checking session in database');
       const sessionData = await executeQuerySingle<{
         user_id: number;
         organization_id: string;
@@ -507,15 +514,31 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
         { token }
       );
 
+      console.log('🔍 verifyAuthFromRequest - Session data found:', sessionData ? 'Yes' : 'No');
+      if (sessionData) {
+        console.log('🔍 verifyAuthFromRequest - Session user_id:', sessionData.user_id);
+        console.log('🔍 verifyAuthFromRequest - Session organization_id:', sessionData.organization_id);
+        console.log('🔍 verifyAuthFromRequest - Session expires_at:', sessionData.expires_at);
+      }
+
       if (!sessionData) {
         // Token no existe o ha expirado
+        console.log('🔍 verifyAuthFromRequest - No valid session found, returning null');
         return null;
       }
 
       // Verificar que el token JWT también sea válido
-      const decoded = this.verifyToken(token);
-      if (decoded.id !== sessionData.user_id) {
-        // Token no coincide con el usuario
+      console.log('🔍 verifyAuthFromRequest - Verifying JWT token');
+      try {
+        const decoded = this.verifyToken(token);
+        console.log('🔍 verifyAuthFromRequest - JWT decoded successfully:', decoded.id);
+        if (decoded.id !== sessionData.user_id) {
+          // Token no coincide con el usuario
+          console.log('🔍 verifyAuthFromRequest - JWT user ID mismatch. JWT:', decoded.id, 'Session:', sessionData.user_id);
+          return null;
+        }
+      } catch (error) {
+        console.log('🔍 verifyAuthFromRequest - JWT verification failed:', error);
         return null;
       }
       
@@ -593,14 +616,33 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
 
   // Extraer token del request
   private extractTokenFromRequest(request: NextRequest): string | null {
+    console.log('🔍 extractTokenFromRequest - Starting token extraction');
+    
+    // Check Authorization header
     const authHeader = request.headers.get('authorization');
+    console.log('🔍 extractTokenFromRequest - Auth header:', authHeader ? 'Found' : 'Not found');
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      return authHeader.substring(7);
+      const token = authHeader.substring(7);
+      console.log('🔍 extractTokenFromRequest - Token from header, length:', token.length);
+      return token;
     }
 
     // También buscar en cookies
     const tokenCookie = request.cookies.get('auth-token');
-    return tokenCookie?.value || null;
+    console.log('🔍 extractTokenFromRequest - Cookie token:', tokenCookie ? 'Found' : 'Not found');
+    if (tokenCookie?.value) {
+      console.log('🔍 extractTokenFromRequest - Token from cookie, length:', tokenCookie.value.length);
+      return tokenCookie.value;
+    }
+
+    // Check all cookies for debugging
+    console.log('🔍 extractTokenFromRequest - All cookies:');
+    request.cookies.getAll().forEach(cookie => {
+      console.log('🔍   Cookie:', cookie.name, '=', cookie.value.substring(0, 20) + '...');
+    });
+
+    console.log('🔍 extractTokenFromRequest - No token found');
+    return null;
   }
 
   // Guardar sesión en BD (opcional)

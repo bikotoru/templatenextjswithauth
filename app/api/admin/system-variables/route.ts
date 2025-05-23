@@ -6,8 +6,12 @@ import { CreateVariableRequest, VariableSearchParams, VariableCategory, Variable
 // GET /api/admin/system-variables - Obtener todas las variables
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 System Variables API - Starting auth verification');
     const user = await verifyAuthFromRequest(request);
+    console.log('🔍 System Variables API - User result:', user ? 'Found' : 'Not found');
+    
     if (!user) {
+      console.log('🔍 System Variables API - No user, returning 401');
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
         { status: 401 }
