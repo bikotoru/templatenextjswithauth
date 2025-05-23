@@ -6,7 +6,7 @@ import { OrganizationUpdateRequest } from '@/app/(module)/admin/organizations/ty
 // GET /admin/organizations/api/[id] - Obtener organización por ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -26,7 +26,8 @@ export async function GET(
       );
     }
 
-    const organizationId = params.id;
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
     const result = await OrganizationBackendService.getById(organizationId);
 
     if (!result.success) {
@@ -50,7 +51,7 @@ export async function GET(
 // PUT /admin/organizations/api/[id] - Actualizar organización
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -70,7 +71,8 @@ export async function PUT(
       );
     }
 
-    const organizationId = params.id;
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
     const body: OrganizationUpdateRequest = await request.json();
     
     // Validaciones básicas
@@ -81,7 +83,7 @@ export async function PUT(
       );
     }
 
-    const result = await OrganizationBackendService.update(organizationId, body, user.id);
+    const result = await OrganizationBackendService.update(organizationId, body, user);
 
     if (!result.success) {
       return NextResponse.json(
@@ -104,7 +106,7 @@ export async function PUT(
 // DELETE /admin/organizations/api/[id] - Eliminar organización
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación y permisos
@@ -124,8 +126,9 @@ export async function DELETE(
       );
     }
 
-    const organizationId = params.id;
-    const result = await OrganizationBackendService.delete(organizationId, user.id);
+    const resolvedParams = await params;
+    const organizationId = resolvedParams.id;
+    const result = await OrganizationBackendService.delete(organizationId, user);
 
     if (!result.success) {
       return NextResponse.json(

@@ -10,6 +10,7 @@ import {
   handleQuerySuccess
 } from '@/utils/sql';
 import { UserSession } from '@/utils/auth';
+import bcrypt from 'bcryptjs';
 import { 
   OrganizationType, 
   OrganizationCreateRequest, 
@@ -40,14 +41,14 @@ export class OrganizationBackendService {
       } = params;
 
       // Construir condiciones WHERE
-      const conditions: Record<string, any> = {};
+      const conditions: Record<string, unknown> = {};
       if (active !== undefined) conditions['o.active'] = active;
 
       const { whereClause, params: whereParams } = buildWhereClause(conditions, 'AND');
       
       // Construir filtros adicionales
       let additionalWhere = '';
-      let additionalParams: Record<string, any> = {};
+      const additionalParams: Record<string, unknown> = {};
       
       // Siempre excluir la organización SYSTEM
       const systemFilter = "o.name != @systemName";
@@ -245,7 +246,6 @@ export class OrganizationBackendService {
           }
 
           // Crear nuevo usuario
-          const bcrypt = require('bcryptjs');
           const hashedPassword = await bcrypt.hash(data.adminUser.newUser.password, 12);
 
           const insertUserQuery = `
@@ -440,7 +440,7 @@ export class OrganizationBackendService {
 
       return await executeTransaction(async (transaction) => {
         const updates: string[] = [];
-        const params: Record<string, any> = { id, userId: user.id };
+        const params: Record<string, unknown> = { id, userId: user.id };
 
         if (data.name !== undefined) {
           updates.push('name = @name');
@@ -635,7 +635,7 @@ export class OrganizationBackendService {
 
   static async assignUserToOrganization(organizationId: string, userId: number, currentUserId: number): Promise<QueryResult<boolean>> {
     try {
-      return await executeTransaction(async (transaction) => {
+      const result = await executeTransaction(async (transaction) => {
         // Verificar si el usuario ya está en la organización
         const checkQuery = `
           SELECT id, active 
@@ -676,6 +676,12 @@ export class OrganizationBackendService {
         await request.query(insertQuery);
         return true;
       });
+
+      if (typeof result === 'boolean') {
+        return handleQuerySuccess(result);
+      } else {
+        return result;
+      }
     } catch (error) {
       return handleQueryError(error);
     }

@@ -109,7 +109,7 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
 
   useEffect(() => {
     fetchOrganizations();
-  }, [searchTerm, activeFilter, expirationFilter, sortBy, sortOrder, currentPage]);
+  }, [searchTerm, activeFilter, expirationFilter, sortBy, sortOrder, currentPage, fetchOrganizations]);
 
   const handleEdit = (organization: OrganizationType) => {
     router.push(`/admin/organizations/${organization.id}/edit`);
@@ -140,7 +140,7 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
     return new Date(dateString).toLocaleDateString('es-CL');
   };
 
-  const formatExpirationDate = (expiresAt: string | null) => {
+  const formatExpirationDate = (expiresAt: string | null | undefined) => {
     if (!expiresAt) return 'Nunca expira';
     const date = new Date(expiresAt);
     const now = new Date();

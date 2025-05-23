@@ -52,7 +52,7 @@ interface OrganizationStatsProps {
   organizationName: string;
 }
 
-export default function OrganizationStats({ organizationId, organizationName }: OrganizationStatsProps) {
+export default function OrganizationStats({ organizationId }: OrganizationStatsProps) {
   const [stats, setStats] = useState<OrganizationStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -77,7 +77,7 @@ export default function OrganizationStats({ organizationId, organizationName }: 
 
   useEffect(() => {
     fetchStats();
-  }, [organizationId]);
+  }, [organizationId, fetchStats]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-CL', {

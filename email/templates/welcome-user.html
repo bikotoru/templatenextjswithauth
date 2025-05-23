@@ -1,0 +1,237 @@
+<!-- SUBJECT: ¡Bienvenido/a {{userName}}! Tu cuenta ha sido creada -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bienvenido al Sistema</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #4a5568;
+            margin-bottom: 20px;
+        }
+        .credentials-box {
+            background-color: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .credentials-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .credential-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .credential-item:last-child {
+            border-bottom: none;
+        }
+        .credential-label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .credential-value {
+            font-family: monospace;
+            background-color: #edf2f7;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #2d3748;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .login-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        .login-button:hover {
+            transform: translateY(-2px);
+        }
+        .security-notice {
+            background-color: #fef5e7;
+            border-left: 4px solid #ed8936;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .security-text {
+            color: #c05621;
+            font-size: 14px;
+            margin: 0;
+        }
+        .features-section {
+            margin: 30px 0;
+        }
+        .features-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            color: #4a5568;
+        }
+        .feature-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        .footer-text {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="welcome-icon">🎉</div>
+            <h1>¡Bienvenido/a al Sistema!</h1>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                ¡Hola {{userName}}!
+            </div>
+            
+            <div class="message">
+                ¡Tu cuenta ha sido creada exitosamente! Estamos emocionados de tenerte en nuestro sistema. 
+                A continuación encontrarás toda la información que necesitas para comenzar.
+            </div>
+            
+            <div class="credentials-box">
+                <div class="credentials-title">📋 Información de tu cuenta:</div>
+                
+                <div class="credential-item">
+                    <span class="credential-label">Email:</span>
+                    <span class="credential-value">{{email}}</span>
+                </div>
+                
+                {{#if temporaryPassword}}
+                <div class="credential-item">
+                    <span class="credential-label">Contraseña temporal:</span>
+                    <span class="credential-value">{{temporaryPassword}}</span>
+                </div>
+                {{/if}}
+            </div>
+            
+            {{#if temporaryPassword}}
+            <div class="security-notice">
+                <p class="security-text">
+                    <strong>🔒 Importante:</strong> Esta es una contraseña temporal. 
+                    Te recomendamos cambiarla por una de tu elección una vez que ingreses al sistema.
+                </p>
+            </div>
+            {{/if}}
+            
+            <div class="button-container">
+                <a href="{{loginUrl}}" class="login-button">
+                    Acceder al Sistema
+                </a>
+            </div>
+            
+            <div class="features-section">
+                <div class="features-title">✨ ¿Qué puedes hacer en el sistema?</div>
+                
+                <div class="feature-item">
+                    <span class="feature-icon">👥</span>
+                    <span>Gestionar usuarios y permisos</span>
+                </div>
+                
+                <div class="feature-item">
+                    <span class="feature-icon">🏢</span>
+                    <span>Administrar organizaciones</span>
+                </div>
+                
+                <div class="feature-item">
+                    <span class="feature-icon">🛡️</span>
+                    <span>Configurar roles y accesos</span>
+                </div>
+                
+                <div class="feature-item">
+                    <span class="feature-icon">📊</span>
+                    <span>Visualizar estadísticas y reportes</span>
+                </div>
+            </div>
+            
+            <div class="message">
+                Si tienes alguna pregunta o necesitas ayuda para comenzar, 
+                no dudes en contactar con nuestro equipo de soporte. 
+                ¡Estamos aquí para ayudarte!
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p class="footer-text">
+                Este email fue enviado desde {{frontendUrl}}<br>
+                © 2025 Todos los derechos reservados
+            </p>
+        </div>
+    </div>
+</body>
+</html>

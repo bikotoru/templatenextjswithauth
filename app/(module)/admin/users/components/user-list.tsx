@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/select';
 import { 
   MoreHorizontal, 
-  Plus, 
   Search, 
   Edit, 
   Trash2, 
@@ -53,7 +52,7 @@ interface UserListProps {
   onUserCreate?: () => void;
 }
 
-export default function UserList({ onUserSelect, onUserEdit, onUserCreate }: UserListProps) {
+export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);

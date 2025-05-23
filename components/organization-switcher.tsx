@@ -92,7 +92,7 @@ export function OrganizationSwitcher() {
       <OrganizationSelectorModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
-        organizations={isSuperAdmin ? allOrganizations : user.organizations}
+        organizations={isSuperAdmin ? (allOrganizations || []) : (user?.organizations || [])}
         currentOrganization={currentOrganization}
         onSelectOrganization={handleSwitchOrganization}
         isLoading={isLoading || loadingOrgs}

@@ -80,21 +80,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     }
   };
 
-  const demoUsers: DemoUser[] = [
-    // 🔥 Usuarios demo fáciles (recomendados para testing)
-    { email: 'admin@demo.com', password: '123456', role: '🔥 Super Admin', org: 'TechCorp' },
-    { email: 'manager@demo.com', password: '123456', role: '🔥 HR Manager', org: 'Consultores' },
-    { email: 'user@demo.com', password: '123456', role: '🔥 HR Analyst', org: 'InnovaStart' },
-    { email: 'viewer@demo.com', password: '123456', role: '🔥 Viewer', org: 'TechCorp' },
-    
-    // 🎭 Usuario multi-tenant (mismo usuario, diferentes permisos por organización)
-    { email: 'multiuser@example.cl', password: '123456', role: '🎭 Multi-Tenant', org: 'Todas las organizaciones' },
-    
-    // 👤 Usuarios multi-tenant originales
-    { email: 'admin@techcorp.cl', password: '123456', role: '👤 Super Admin', org: 'TechCorp' },
-    { email: 'maria.garcia@consultores.cl', password: '123456', role: '👤 HR Manager', org: 'Consultores' },
-    { email: 'sofia@innovastart.cl', password: '123456', role: '👤 Super Admin', org: 'InnovaStart' },
-  ];
+
 
   const fillDemoUser = (email: string, password: string) => {
     setEmail(email);
@@ -231,6 +217,15 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 )}
               </Button>
             </form>
+            
+            <div className="mt-4 text-center">
+              <a 
+                href="/auth/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
           </CardContent>
         </Card>
 

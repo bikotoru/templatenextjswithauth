@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthFromRequest } from '@/utils/auth';
 import { OrganizationBackendService } from '@/app/(module)/admin/organizations/services/backend.service';
-import { OrganizationCreateRequest, OrganizationUpdateRequest } from '@/app/(module)/admin/organizations/types';
+import { OrganizationCreateRequest } from '@/app/(module)/admin/organizations/types';
 
 // GET /admin/organizations/api - Obtener todas las organizaciones
 export async function GET(request: NextRequest) {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await OrganizationBackendService.create(body, user.id);
+    const result = await OrganizationBackendService.create(body, user);
 
     if (!result.success) {
       return NextResponse.json(

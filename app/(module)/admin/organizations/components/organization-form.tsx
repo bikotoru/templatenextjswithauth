@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Building2, User, Users, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, Building2, User, Check, ChevronsUpDown } from 'lucide-react';
 
 interface OrganizationFormProps {
   organization?: OrganizationType | null;
@@ -93,6 +93,11 @@ export default function OrganizationForm({
           active: organization.active,
           expires_at: hasExpiration ? organization.expires_at!.split('T')[0] : '',
           neverExpires: !hasExpiration,
+          adminType: 'new',
+          existingUserId: '',
+          newUserEmail: '',
+          newUserName: '',
+          newUserPassword: '',
         });
       } else {
         setFormData({

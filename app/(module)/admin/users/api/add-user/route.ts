@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthFromRequest, hasPermission } from '@/utils/auth';
 import { executeQuery, executeQuerySingle, executeTransaction } from '@/utils/sql';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 interface AddUserRequest {
   email: string;
@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Verificar si ya está en la organización actual
+        if (!user.currentOrganization) {
+          throw new Error('No hay organización seleccionada');
+        }
+        
         const userInOrg = await executeQuerySingle<{ exists: number }>(
           `SELECT COUNT(*) as exists 
            FROM user_organizations 
@@ -101,7 +105,7 @@ export async function POST(request: NextRequest) {
       // 4. Asignar usuario a la organización
       const assignOrgRequest = transaction.request();
       assignOrgRequest.input('userId', targetUserId);
-      assignOrgRequest.input('organizationId', user.currentOrganization.id);
+      assignOrgRequest.input('organizationId', user.currentOrganization!.id);
       assignOrgRequest.input('createdById', user.id);
       assignOrgRequest.input('updatedById', user.id);
 
@@ -122,7 +126,7 @@ export async function POST(request: NextRequest) {
           const assignRoleRequest = transaction.request();
           assignRoleRequest.input('userId', targetUserId);
           assignRoleRequest.input('roleId', roleId);
-          assignRoleRequest.input('organizationId', user.currentOrganization.id);
+          assignRoleRequest.input('organizationId', user.currentOrganization!.id);
           assignRoleRequest.input('createdById', user.id);
           assignRoleRequest.input('updatedById', user.id);
 
@@ -145,7 +149,7 @@ export async function POST(request: NextRequest) {
           const assignPermRequest = transaction.request();
           assignPermRequest.input('userId', targetUserId);
           assignPermRequest.input('permissionId', permissionId);
-          assignPermRequest.input('organizationId', user.currentOrganization.id);
+          assignPermRequest.input('organizationId', user.currentOrganization!.id);
           assignPermRequest.input('createdById', user.id);
           assignPermRequest.input('updatedById', user.id);
 
@@ -165,7 +169,7 @@ export async function POST(request: NextRequest) {
       // 7. Registrar actividad
       const logActivityRequest = transaction.request();
       logActivityRequest.input('userId', user.id);
-      logActivityRequest.input('organizationId', user.currentOrganization.id);
+      logActivityRequest.input('organizationId', user.currentOrganization!.id);
       logActivityRequest.input('action', isNewUser ? 'CREATE_USER' : 'ASSIGN_USER');
       logActivityRequest.input('resourceType', 'USER');
       logActivityRequest.input('resourceId', targetUserId.toString());

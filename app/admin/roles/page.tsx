@@ -9,10 +9,10 @@ import { Toaster } from '@/components/ui/sonner';
 
 export default function RolesPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
+  //const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
 
   const handleRoleSelect = (role: RoleType) => {
-    setSelectedRole(role);
+    //setSelectedRole(role);
   };
 
   const handleRoleEdit = (role: RoleType) => {

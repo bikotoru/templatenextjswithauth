@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       { userId }
     );
 
-    const isUserSuperAdmin = isSuperAdmin?.role_count > 0;
+    const isUserSuperAdmin = (isSuperAdmin?.role_count || 0) > 0;
 
     // Obtener organizaciones del usuario
     const organizations = await getUserOrganizations(userId);
@@ -110,16 +110,16 @@ export async function GET(request: NextRequest) {
 
     // Obtener permisos y roles para la organización actual
     const [permissions, roles] = await Promise.all([
-      getUserPermissions(userId, currentOrganization.id),
-      getUserRoles(userId, currentOrganization.id)
+      getUserPermissions(userId, currentOrganization!.id),
+      getUserRoles(userId, currentOrganization!.id)
     ]);
 
     // Debug temporal
     console.log('🔍 /me API Debug:', {
       userId,
       email: userInfo.email,
-      currentOrganization: currentOrganization.name,
-      currentOrgId: currentOrganization.id,
+      currentOrganization: currentOrganization!.name,
+      currentOrgId: currentOrganization!.id,
       roles,
       permissionCount: permissions.length,
       permissions,

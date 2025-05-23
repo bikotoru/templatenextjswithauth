@@ -180,13 +180,13 @@ class AuthService {
 
       console.log('🔍 getUserOrganizations - Super Admin check:', {
         userId,
-        isSuperAdmin: isSuperAdmin?.role_count > 0,
-        roleCount: isSuperAdmin?.role_count
+        isSuperAdmin: (isSuperAdmin?.role_count || 0) > 0,
+        roleCount: isSuperAdmin?.role_count || 0
       });
 
       let organizations;
       
-      if (isSuperAdmin?.role_count > 0) {
+      if ((isSuperAdmin?.role_count || 0) > 0) {
         // Para Super Admin: obtener TODAS las organizaciones activas
         organizations = await executeQuery<{
           id: string;

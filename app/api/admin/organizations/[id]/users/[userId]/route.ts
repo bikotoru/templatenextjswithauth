@@ -48,14 +48,7 @@ export async function DELETE(
       organizationId 
     });
 
-    if (!checkResult.success) {
-      return NextResponse.json(
-        { error: 'Error al verificar la relación usuario-organización' },
-        { status: 500 }
-      );
-    }
-
-    if (checkResult.data.length === 0) {
+    if (!checkResult || checkResult.length === 0) {
       return NextResponse.json(
         { error: 'El usuario no pertenece a esta organización' },
         { status: 404 }
@@ -72,13 +65,13 @@ export async function DELETE(
       WHERE user_id = @userId AND organization_id = @organizationId
     `;
 
-    const removeResult = await executeQuery(removeQuery, { 
-      userId, 
-      organizationId,
-      currentUserId: user.id
-    });
-
-    if (!removeResult.success) {
+    try {
+      await executeQuery(removeQuery, { 
+        userId, 
+        organizationId,
+        currentUserId: user.id
+      });
+    } catch (error) {
       return NextResponse.json(
         { error: 'Error al remover usuario de la organización' },
         { status: 500 }

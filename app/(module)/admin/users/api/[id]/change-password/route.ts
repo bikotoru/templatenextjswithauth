@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthFromRequest, hasPermission } from '@/utils/auth';
 import { executeQuery, executeQuerySingle, executeTransaction } from '@/utils/sql';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 interface ChangePasswordRequest {
   newPassword: string;
@@ -9,7 +9,7 @@ interface ChangePasswordRequest {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -21,7 +21,8 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 });
     }
 
-    const userId = parseInt(params.id);
+    const resolvedParams = await params;
+    const userId = parseInt(resolvedParams.id);
     if (isNaN(userId)) {
       return NextResponse.json({ success: false, error: 'ID de usuario inválido' }, { status: 400 });
     }

@@ -256,7 +256,7 @@ export default function AddUserForm({ open, onOpenChange, onSuccess }: AddUserFo
                 onChange={(e) => setFormData(prev => ({ ...prev, temporaryPassword: e.target.value }))}
               />
               <p className="text-xs text-muted-foreground">
-                Si se deja vacío, se generará "123456" como contraseña temporal
+                Si se deja vacío, se generará 123456 como contraseña temporal
               </p>
             </div>
           </div>

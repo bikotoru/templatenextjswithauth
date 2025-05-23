@@ -1,0 +1,272 @@
+<!-- SUBJECT: Invitación a {{organizationName}} - {{frontendUrl}} -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitación a Organización</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .invite-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #4a5568;
+            margin-bottom: 20px;
+        }
+        .organization-box {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            border: 2px solid #c084fc;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        .org-name {
+            font-size: 24px;
+            font-weight: 700;
+            color: #6b21a8;
+            margin-bottom: 10px;
+        }
+        .org-role {
+            font-size: 16px;
+            color: #7c2d12;
+            background-color: #fed7aa;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: 500;
+        }
+        .invite-details {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+        .detail-value {
+            color: #2d3748;
+            font-weight: 600;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .accept-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s;
+            margin: 0 10px;
+        }
+        .decline-button {
+            display: inline-block;
+            background: #f7fafc;
+            color: #4a5568;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            border: 2px solid #e2e8f0;
+            transition: transform 0.2s;
+            margin: 0 10px;
+        }
+        .accept-button:hover, .decline-button:hover {
+            transform: translateY(-2px);
+        }
+        .permissions-section {
+            margin: 30px 0;
+        }
+        .permissions-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        .permission-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            color: #4a5568;
+            background-color: #f0fff4;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 4px solid #10b981;
+        }
+        .permission-icon {
+            margin-right: 10px;
+            font-size: 16px;
+            color: #10b981;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        .footer-text {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0;
+        }
+        .expires-notice {
+            background-color: #fef3cd;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .expires-text {
+            color: #92400e;
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="invite-icon">🎯</div>
+            <h1>Invitación a Organización</h1>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                ¡Hola {{userName}}!
+            </div>
+            
+            <div class="message">
+                {{invitedBy}} te ha invitado a unirte a su organización. 
+                Esta es una gran oportunidad para colaborar y ser parte de un equipo increíble.
+            </div>
+            
+            <div class="organization-box">
+                <div class="org-name">{{organizationName}}</div>
+                <div class="org-role">Rol: {{roleName}}</div>
+            </div>
+            
+            <div class="invite-details">
+                <div class="detail-item">
+                    <span class="detail-label">Invitado por:</span>
+                    <span class="detail-value">{{invitedBy}}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Fecha de invitación:</span>
+                    <span class="detail-value">{{inviteDate}}</span>
+                </div>
+                
+                <div class="detail-item">
+                    <span class="detail-label">Tu email:</span>
+                    <span class="detail-value">{{email}}</span>
+                </div>
+            </div>
+            
+            {{#if expiresInHours}}
+            <div class="expires-notice">
+                <p class="expires-text">
+                    <strong>⏰ Importante:</strong> Esta invitación expirará en {{expiresInHours}} horas.
+                    Te recomendamos responder pronto.
+                </p>
+            </div>
+            {{/if}}
+            
+            <div class="permissions-section">
+                <div class="permissions-title">🔐 Con este rol podrás:</div>
+                
+                {{#each permissions}}
+                <div class="permission-item">
+                    <span class="permission-icon">✓</span>
+                    <span>{{this}}</span>
+                </div>
+                {{/each}}
+            </div>
+            
+            <div class="button-container">
+                <a href="{{acceptLink}}" class="accept-button">
+                    ✅ Aceptar Invitación
+                </a>
+                
+                <a href="{{declineLink}}" class="decline-button">
+                    ❌ Declinar
+                </a>
+            </div>
+            
+            <div class="message">
+                Al aceptar esta invitación, podrás acceder a {{organizationName}} con los permisos 
+                asignados a tu rol. Si tienes alguna pregunta sobre la organización o tus 
+                responsabilidades, no dudes en contactar con {{invitedBy}}.
+            </div>
+            
+            <div class="message">
+                Si no deseas unirte a esta organización o no conoces a quien te invitó, 
+                puedes declinar la invitación de forma segura.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p class="footer-text">
+                Este email fue enviado desde {{frontendUrl}}<br>
+                © 2025 Todos los derechos reservados
+            </p>
+        </div>
+    </div>
+</body>
+</html>

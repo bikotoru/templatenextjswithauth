@@ -81,7 +81,7 @@ export default function OrganizationUsers({ organizationId, organizationName }: 
 
   useEffect(() => {
     fetchUsers();
-  }, [organizationId]);
+  }, [organizationId, fetchUsers]);
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

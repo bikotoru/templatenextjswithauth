@@ -142,7 +142,7 @@ export async function GET(
       },
       roleStats: {
         totalRoles: roleStats?.data?.totalRoles || 0,
-        mostAssignedRole: mostAssignedRoleResult?.data?.name || null,
+        mostAssignedRole: mostAssignedRoleResult?.name || null,
         averageRolesPerUser: roleStats?.data?.averageRolesPerUser || 0,
       },
       activityStats: {
@@ -150,7 +150,7 @@ export async function GET(
         loginsThisMonth: activityStats?.data?.loginsThisMonth || 0,
         loginsThisWeek: activityStats?.data?.loginsThisWeek || 0,
         lastActivityDate: activityStats?.data?.lastActivityDate || null,
-        mostActiveUser: mostActiveUserResult?.data?.name || null,
+        mostActiveUser: mostActiveUserResult?.name || null,
       },
       systemStats: {
         organizationAge: systemStats?.data?.organizationAge || 0,

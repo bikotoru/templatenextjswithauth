@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Dialog,
   DialogContent,
@@ -39,7 +39,7 @@ export default function EditRolePage() {
   const roleId = parseInt(params.id as string);
   
   // Get tab from URL params
-  const [searchParams, setSearchParams] = useState(new URLSearchParams());
+  //const [searchParams, setSearchParams] = useState(new URLSearchParams());
   const [defaultTab, setDefaultTab] = useState('users');
   
   const [loading, setLoading] = useState(false);
@@ -79,7 +79,7 @@ export default function EditRolePage() {
     if (tab === 'permissions') {
       setDefaultTab('permissions');
     }
-    setSearchParams(urlParams);
+    //setSearchParams(urlParams);
   }, []);
 
   useEffect(() => {

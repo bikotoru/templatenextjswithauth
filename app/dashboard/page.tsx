@@ -10,8 +10,7 @@ import {
   Key, 
   Activity,
   TrendingUp,
-  Calendar,
-  Settings
+  Calendar
 } from 'lucide-react';
 
 export default function DashboardPage() {
