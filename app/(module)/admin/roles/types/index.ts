@@ -16,6 +16,7 @@ export interface RoleCreateRequest {
   description?: string;
   active?: boolean;
   permissionIds?: number[];
+  userIds?: number[];
 }
 
 export interface RoleUpdateRequest {
