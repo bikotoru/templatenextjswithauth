@@ -670,6 +670,550 @@ INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_a
 VALUES (@demo_admin_id, @admin_role_id, @demo_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
 
 -- ============================================================================
+-- SISTEMA DE VARIABLES DEL SISTEMA
+-- ============================================================================
+
+-- Tabla principal de variables del sistema
+CREATE TABLE system_variables (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    organization_id UNIQUEIDENTIFIER NOT NULL,
+    variable_key NVARCHAR(100) NOT NULL,
+    display_name NVARCHAR(255) NOT NULL,
+    description NVARCHAR(1000) NULL,
+    variable_type NVARCHAR(50) NOT NULL, -- 'incremental', 'text', 'number', 'date', 'boolean', 'json'
+    category NVARCHAR(50) NOT NULL, -- 'numbering', 'limits', 'settings', 'dates', 'business_rules'
+    is_required BIT DEFAULT 0,
+    is_system BIT DEFAULT 0, -- Variables del sistema que no se pueden eliminar
+    is_active BIT DEFAULT 1,
+    default_value NVARCHAR(MAX) NULL, -- Valor por defecto (no se usa para incrementales)
+    
+    -- Campos de auditoría
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    created_by_id INT NULL,
+    updated_by_id INT NULL,
+    
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (created_by_id) REFERENCES users(id),
+    FOREIGN KEY (updated_by_id) REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT UK_system_variables_org_key UNIQUE (organization_id, variable_key),
+    
+    -- Índices
+    INDEX IX_system_variables_org_id (organization_id),
+    INDEX IX_system_variables_key (variable_key),
+    INDEX IX_system_variables_type (variable_type),
+    INDEX IX_system_variables_category (category),
+    INDEX IX_system_variables_active (is_active)
+);
+GO
+
+-- Configuración para variables incrementales
+CREATE TABLE system_variable_incremental_config (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    system_variable_id INT NOT NULL,
+    prefix NVARCHAR(50) NOT NULL DEFAULT '',
+    suffix NVARCHAR(50) NOT NULL DEFAULT '',
+    current_number BIGINT NOT NULL DEFAULT 0,
+    number_length INT NOT NULL DEFAULT 8, -- Cantidad de dígitos (con padding de ceros)
+    reset_frequency NVARCHAR(20) NOT NULL DEFAULT 'never', -- 'never', 'yearly', 'monthly', 'daily'
+    last_reset_date DATETIME2 NULL,
+    
+    -- Campos de auditoría
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (system_variable_id) REFERENCES system_variables(id) ON DELETE CASCADE,
+    
+    -- Índices
+    INDEX IX_incremental_config_variable_id (system_variable_id)
+);
+GO
+
+-- Valores actuales de las variables
+CREATE TABLE system_variable_values (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    system_variable_id INT NOT NULL,
+    text_value NVARCHAR(MAX) NULL,
+    number_value DECIMAL(18,6) NULL,
+    date_value DATETIME2 NULL,
+    boolean_value BIT NULL,
+    
+    -- Campos de auditoría
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    updated_by_id INT NULL,
+    
+    FOREIGN KEY (system_variable_id) REFERENCES system_variables(id) ON DELETE CASCADE,
+    FOREIGN KEY (updated_by_id) REFERENCES users(id),
+    
+    -- Solo puede haber un valor por variable
+    CONSTRAINT UK_variable_values_variable_id UNIQUE (system_variable_id),
+    
+    -- Índices
+    INDEX IX_variable_values_variable_id (system_variable_id),
+    INDEX IX_variable_values_updated_at (updated_at)
+);
+GO
+
+-- Reglas de validación para variables
+CREATE TABLE system_variable_validations (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    system_variable_id INT NOT NULL,
+    validation_type NVARCHAR(50) NOT NULL, -- 'min_value', 'max_value', 'min_length', 'max_length', 'regex', 'required'
+    validation_value NVARCHAR(500) NOT NULL, -- El valor a validar (número, regex, etc.)
+    error_message NVARCHAR(500) NULL, -- Mensaje personalizado de error
+    
+    -- Campos de auditoría
+    created_at DATETIME2 DEFAULT GETDATE(),
+    
+    FOREIGN KEY (system_variable_id) REFERENCES system_variables(id) ON DELETE CASCADE,
+    
+    -- Índices
+    INDEX IX_validations_variable_id (system_variable_id),
+    INDEX IX_validations_type (validation_type)
+);
+GO
+
+-- Log de cambios y generación de números
+CREATE TABLE system_variable_change_log (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    system_variable_id INT NOT NULL,
+    change_type NVARCHAR(50) NOT NULL, -- 'VALUE_CHANGE', 'NUMBER_GENERATION', 'CONFIG_CHANGE', 'DELETE'
+    old_value NVARCHAR(MAX) NULL,
+    new_value NVARCHAR(MAX) NULL,
+    context NVARCHAR(500) NULL, -- Contexto adicional (ej: "Orden de compra #123")
+    
+    -- Campos de auditoría
+    created_at DATETIME2 DEFAULT GETDATE(),
+    changed_by_id INT NULL,
+    
+    FOREIGN KEY (system_variable_id) REFERENCES system_variables(id),
+    FOREIGN KEY (changed_by_id) REFERENCES users(id),
+    
+    -- Índices
+    INDEX IX_change_log_variable_id (system_variable_id),
+    INDEX IX_change_log_type (change_type),
+    INDEX IX_change_log_created_at (created_at),
+    INDEX IX_change_log_changed_by (changed_by_id)
+);
+GO
+
+-- Tabla para historial de números generados (para auditoría y no reutilización)
+CREATE TABLE system_variable_number_history (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    system_variable_id INT NOT NULL,
+    generated_number NVARCHAR(200) NOT NULL, -- El número completo generado
+    sequence_number BIGINT NOT NULL, -- Solo la parte numérica
+    context NVARCHAR(500) NULL,
+    
+    -- Campos de auditoría
+    generated_at DATETIME2 DEFAULT GETDATE(),
+    generated_by_id INT NULL,
+    
+    FOREIGN KEY (system_variable_id) REFERENCES system_variables(id),
+    FOREIGN KEY (generated_by_id) REFERENCES users(id),
+    
+    -- Constraints
+    CONSTRAINT UK_number_history_var_seq UNIQUE (system_variable_id, sequence_number),
+    
+    -- Índices
+    INDEX IX_number_history_variable_id (system_variable_id),
+    INDEX IX_number_history_generated_at (generated_at),
+    INDEX IX_number_history_sequence (sequence_number)
+);
+GO
+
+-- ============================================================================
+-- STORED PROCEDURE PARA GENERACIÓN ATÓMICA DE NÚMEROS
+-- ============================================================================
+
+CREATE PROCEDURE sp_GenerateNextNumber
+    @OrganizationId UNIQUEIDENTIFIER,
+    @VariableKey NVARCHAR(100),
+    @UserId INT,
+    @Context NVARCHAR(500) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @VariableId INT;
+    DECLARE @CurrentNumber BIGINT;
+    DECLARE @Prefix NVARCHAR(50);
+    DECLARE @Suffix NVARCHAR(50);
+    DECLARE @NumberLength INT;
+    DECLARE @GeneratedNumber NVARCHAR(200);
+    DECLARE @NewSequence BIGINT;
+    
+    BEGIN TRANSACTION;
+    
+    BEGIN TRY
+        -- Obtener la variable y bloquearla para actualización
+        SELECT 
+            @VariableId = sv.id,
+            @CurrentNumber = ISNULL(sic.current_number, 0),
+            @Prefix = ISNULL(sic.prefix, ''),
+            @Suffix = ISNULL(sic.suffix, ''),
+            @NumberLength = ISNULL(sic.number_length, 8)
+        FROM system_variables sv
+        INNER JOIN system_variable_incremental_config sic ON sv.id = sic.system_variable_id
+        WHERE sv.organization_id = @OrganizationId 
+            AND sv.variable_key = @VariableKey 
+            AND sv.variable_type = 'incremental'
+            AND sv.is_active = 1
+        WITH (UPDLOCK, ROWLOCK);
+        
+        IF @VariableId IS NULL
+        BEGIN
+            ROLLBACK TRANSACTION;
+            SELECT 0 as success, 'Variable incremental no encontrada' as error_message;
+            RETURN;
+        END
+        
+        -- Calcular el siguiente número
+        SET @NewSequence = @CurrentNumber + 1;
+        
+        -- Generar el número formateado
+        SET @GeneratedNumber = @Prefix + 
+                              RIGHT('0000000000000000000000000000000000000000' + CAST(@NewSequence AS NVARCHAR(40)), @NumberLength) + 
+                              @Suffix;
+        
+        -- Actualizar el contador
+        UPDATE system_variable_incremental_config
+        SET current_number = @NewSequence,
+            updated_at = GETDATE()
+        WHERE system_variable_id = @VariableId;
+        
+        -- Registrar en historial
+        INSERT INTO system_variable_number_history 
+        (system_variable_id, generated_number, sequence_number, context, generated_by_id)
+        VALUES 
+        (@VariableId, @GeneratedNumber, @NewSequence, @Context, @UserId);
+        
+        -- Registrar en log de cambios
+        INSERT INTO system_variable_change_log 
+        (system_variable_id, change_type, old_value, new_value, context, changed_by_id)
+        VALUES 
+        (@VariableId, 'NUMBER_GENERATION', CAST(@CurrentNumber AS NVARCHAR(50)), CAST(@NewSequence AS NVARCHAR(50)), @Context, @UserId);
+        
+        COMMIT TRANSACTION;
+        
+        -- Retornar el resultado exitoso
+        SELECT 1 as success, @GeneratedNumber as number, @NewSequence as sequence_number;
+        
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        SELECT 0 as success, @ErrorMessage as error_message;
+    END CATCH
+END;
+GO
+
+-- ============================================================================
+-- TRIGGERS PARA VARIABLES DEL SISTEMA
+-- ============================================================================
+
+-- Trigger para system_variables
+CREATE TRIGGER tr_system_variables_update
+ON system_variables
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE system_variables 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- Trigger para system_variable_incremental_config
+CREATE TRIGGER tr_incremental_config_update
+ON system_variable_incremental_config
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE system_variable_incremental_config 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- Trigger para system_variable_values
+CREATE TRIGGER tr_variable_values_update
+ON system_variable_values
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE system_variable_values 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- ============================================================================
+-- PERMISOS PARA VARIABLES DEL SISTEMA
+-- ============================================================================
+
+-- Agregar permisos para variables del sistema a la organización SYSTEM
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @system_org_id,
+    'system_variables:view',
+    'Ver variables del sistema',
+    'system_variables',
+    'view',
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:view');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @system_org_id,
+    'system_variables:create',
+    'Crear variables del sistema',
+    'system_variables',
+    'create',
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:create');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @system_org_id,
+    'system_variables:edit',
+    'Editar variables del sistema',
+    'system_variables',
+    'edit',
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:edit');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @system_org_id,
+    'system_variables:delete',
+    'Eliminar variables del sistema',
+    'system_variables',
+    'delete',
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:delete');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @system_org_id,
+    'system_variables:generate',
+    'Generar números incrementales',
+    'system_variables',
+    'generate',
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:generate');
+
+-- Agregar permisos básicos para la organización demo
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @demo_org_id,
+    'system_variables:view',
+    'Ver variables del sistema',
+    'system_variables',
+    'view',
+    0,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:view');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @demo_org_id,
+    'system_variables:create',
+    'Crear variables del sistema',
+    'system_variables',
+    'create',
+    0,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:create');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @demo_org_id,
+    'system_variables:edit',
+    'Editar variables del sistema',
+    'system_variables',
+    'edit',
+    0,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:edit');
+
+INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @demo_org_id,
+    'system_variables:generate',
+    'Generar números incrementales',
+    'system_variables',
+    'generate',
+    0,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:generate');
+
+-- Asignar permisos al rol Admin de la organización demo
+INSERT INTO role_permission_assignments (role_id, permission_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @admin_role_id,
+    p.id,
+    GETDATE(),
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+FROM permissions p 
+WHERE p.organization_id = @demo_org_id 
+AND p.name IN ('system_variables:view', 'system_variables:create', 'system_variables:edit', 'system_variables:generate')
+AND NOT EXISTS (
+    SELECT 1 FROM role_permission_assignments rpa 
+    WHERE rpa.role_id = @admin_role_id AND rpa.permission_id = p.id
+);
+
+-- ============================================================================
+-- VARIABLES DEL SISTEMA DE EJEMPLO
+-- ============================================================================
+
+-- Variable incremental para números de orden de compra
+DECLARE @purchase_order_var_id INT;
+
+INSERT INTO system_variables (
+    organization_id, variable_key, display_name, description, variable_type, category, 
+    is_required, is_system, created_by_id, updated_by_id
+) 
+VALUES (
+    @demo_org_id, 
+    'PURCHASE_ORDER_NUMBER', 
+    'Numeración de Órdenes de Compra', 
+    'Numeración automática para órdenes de compra con formato OC-XXXXXXXX',
+    'incremental', 
+    'numbering', 
+    1, 
+    0,
+    @superadmin_id, 
+    @superadmin_id
+);
+
+SET @purchase_order_var_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_incremental_config (
+    system_variable_id, prefix, suffix, current_number, number_length, reset_frequency
+)
+VALUES (
+    @purchase_order_var_id, 'OC-', '', 0, 8, 'yearly'
+);
+
+-- Variable de texto para slogan de la empresa
+DECLARE @company_slogan_var_id INT;
+
+INSERT INTO system_variables (
+    organization_id, variable_key, display_name, description, variable_type, category, 
+    is_required, is_system, default_value, created_by_id, updated_by_id
+) 
+VALUES (
+    @demo_org_id, 
+    'COMPANY_SLOGAN', 
+    'Slogan de la Empresa', 
+    'Frase representativa de la empresa',
+    'text', 
+    'settings', 
+    0, 
+    0,
+    'Excelencia en cada proyecto',
+    @superadmin_id, 
+    @superadmin_id
+);
+
+SET @company_slogan_var_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_values (system_variable_id, text_value, updated_by_id)
+VALUES (@company_slogan_var_id, 'Excelencia en cada proyecto', @superadmin_id);
+
+-- Variable numérica para límite máximo de compra
+DECLARE @max_purchase_var_id INT;
+
+INSERT INTO system_variables (
+    organization_id, variable_key, display_name, description, variable_type, category, 
+    is_required, is_system, default_value, created_by_id, updated_by_id
+) 
+VALUES (
+    @demo_org_id, 
+    'MAX_PURCHASE_AMOUNT', 
+    'Límite Máximo de Compra', 
+    'Monto máximo permitido para órdenes de compra sin autorización especial',
+    'number', 
+    'limits', 
+    1, 
+    0,
+    '1000000',
+    @superadmin_id, 
+    @superadmin_id
+);
+
+SET @max_purchase_var_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_values (system_variable_id, number_value, updated_by_id)
+VALUES (@max_purchase_var_id, 1000000, @superadmin_id);
+
+-- Variable booleana para modo mantenimiento
+DECLARE @maintenance_mode_var_id INT;
+
+INSERT INTO system_variables (
+    organization_id, variable_key, display_name, description, variable_type, category, 
+    is_required, is_system, default_value, created_by_id, updated_by_id
+) 
+VALUES (
+    @demo_org_id, 
+    'MAINTENANCE_MODE', 
+    'Modo Mantenimiento', 
+    'Indica si el sistema está en modo mantenimiento',
+    'boolean', 
+    'settings', 
+    1, 
+    0,
+    'false',
+    @superadmin_id, 
+    @superadmin_id
+);
+
+SET @maintenance_mode_var_id = SCOPE_IDENTITY();
+
+INSERT INTO system_variable_values (system_variable_id, boolean_value, updated_by_id)
+VALUES (@maintenance_mode_var_id, 0, @superadmin_id);
+
+-- ============================================================================
 -- RESUMEN DE CREACIÓN
 -- ============================================================================
 
@@ -688,6 +1232,12 @@ PRINT '  ✓ user_role_assignments';
 PRINT '  ✓ user_permission_assignments';
 PRINT '  ✓ user_sessions';
 PRINT '  ✓ activity_logs';
+PRINT '  ✓ system_variables (variables configurables del sistema)';
+PRINT '  ✓ system_variable_incremental_config (configuración de numeración)';
+PRINT '  ✓ system_variable_values (valores actuales)';
+PRINT '  ✓ system_variable_validations (reglas de validación)';
+PRINT '  ✓ system_variable_change_log (auditoría de cambios)';
+PRINT '  ✓ system_variable_number_history (historial de números generados)';
 PRINT '';
 PRINT 'Características implementadas:';
 PRINT '  ✓ Campos de auditoría obligatorios en todas las tablas';
@@ -696,6 +1246,10 @@ PRINT '  ✓ Permisos y roles con flags system_hidden';
 PRINT '  ✓ Triggers automáticos para updated_at';
 PRINT '  ✓ Índices optimizados para consultas multi-tenant';
 PRINT '  ✓ Stored procedures para consultas de permisos';
+PRINT '  ✓ Sistema de variables configurables con tipos múltiples';
+PRINT '  ✓ Numeración automática atómica (sin duplicados)';
+PRINT '  ✓ Validaciones configurables por variable';
+PRINT '  ✓ Auditoría completa de cambios y generaciones';
 PRINT '  ✓ Sin tablas relacionadas con CV';
 PRINT '';
 PRINT 'Datos iniciales creados:';
@@ -705,8 +1259,10 @@ PRINT '  ✓ Organización: SYSTEM (para permisos del sistema)';
 PRINT '  ✓ Organización: Empresa Demo (organización de ejemplo)';
 PRINT '  ✓ 11 permisos del sistema (ocultos)';
 PRINT '  ✓ 10 permisos básicos (usuarios, roles, dashboard)';
+PRINT '  ✓ 5 permisos para variables del sistema';
 PRINT '  ✓ 1 rol del sistema: Super Admin (oculto)';
 PRINT '  ✓ 2 roles básicos: Admin, Usuario';
+PRINT '  ✓ 4 variables de ejemplo (numeración, texto, número, booleano)';
 PRINT '';
 PRINT 'IMPORTANTE:';
 PRINT '  - Cambiar contraseñas en producción';

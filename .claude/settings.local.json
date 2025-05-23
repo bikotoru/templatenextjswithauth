@@ -15,7 +15,9 @@
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
       "Bash(npm run lint)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(tail:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }
