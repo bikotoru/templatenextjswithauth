@@ -135,11 +135,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Sidebar */}
         <Sidebar className="w-64 border-r">
           <SidebarHeader className="p-4 border-b">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">NT</span>
-              </div>
-              <span className="font-semibold text-lg">NextJS Template</span>
+            <div className="flex items-center justify-center">
+              {currentOrganization?.logo ? (
+                <img 
+                  src={currentOrganization.logo} 
+                  alt={`Logo de ${currentOrganization.name}`}
+                  className="h-8 max-w-full object-contain"
+                  onError={(e) => {
+                    // Fallback si la imagen no carga - mostrar nombre de la empresa
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const container = target.parentElement;
+                    if (container) {
+                      container.innerHTML = `<span class="font-semibold text-lg">${currentOrganization?.name || 'NextJS Template'}</span>`;
+                    }
+                  }}
+                />
+              ) : (
+                <span className="font-semibold text-lg">
+                  {currentOrganization?.name || 'NextJS Template'}
+                </span>
+              )}
             </div>
           </SidebarHeader>
           
