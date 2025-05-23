@@ -46,23 +46,296 @@ http://localhost:3000/admin/permissions → Gestión de permisos
 │   ├── page.tsx                   # Redirección automática
 │   ├── auth/page.tsx              → Login
 │   ├── dashboard/page.tsx         → Dashboard principal
-│   ├── admin/
+│   ├── admin/                     # Panel de administración (legacy - en proceso de migración)
 │   │   ├── page.tsx              → Panel de administración
 │   │   ├── users/page.tsx        → Gestión de usuarios
 │   │   ├── roles/page.tsx        → Gestión de roles
 │   │   └── permissions/page.tsx  → Gestión de permisos
-│   ├── (module)/                  # Módulos internos
+│   ├── (module)/                  # ✨ NUEVA ARQUITECTURA MODULAR ✨
 │   │   ├── auth/                 # Sistema de autenticación
+│   │   │   ├── api/              # Backend del módulo auth
+│   │   │   ├── components/       # Componentes del módulo auth
+│   │   │   ├── services/         # Servicios del módulo auth
+│   │   │   └── types/            # Tipos del módulo auth
 │   │   ├── dashboard/            # Dashboard y layout
-│   │   └── admin/                # Módulos de administración
-│   │       ├── users/            # Gestión de usuarios
-│   │       ├── roles/            # Gestión de roles
-│   │       └── permissions/      # Gestión de permisos
-│   └── api/                      # APIs REST
+│   │   │   ├── api/              # Backend del módulo dashboard
+│   │   │   ├── components/       # Componentes del módulo dashboard
+│   │   │   ├── services/         # Servicios del módulo dashboard
+│   │   │   └── types/            # Tipos del módulo dashboard
+│   │   ├── admin/                # Módulos de administración (legacy)
+│   │   │   ├── users/            # Gestión de usuarios
+│   │   │   ├── roles/            # Gestión de roles
+│   │   │   └── permissions/      # Gestión de permisos
+│   │   ├── inventario/           # 📋 EJEMPLO: Módulo Inventario
+│   │   │   ├── api/              # Backend inventario (route.ts, [id]/route.ts)
+│   │   │   ├── page.tsx          # Frontend principal del inventario
+│   │   │   ├── components/       # Componentes específicos del inventario
+│   │   │   ├── hooks/            # Hooks personalizados del inventario
+│   │   │   ├── services/         # Servicios del inventario (backend.service.ts, frontend.service.ts)
+│   │   │   ├── utils/            # Utilitarios específicos del inventario
+│   │   │   └── types/            # Tipos TypeScript del inventario
+│   │   └── [nuevo-modulo]/       # 🚀 PATRON PARA NUEVOS MODULOS
+│   │       ├── api/              # Backend del módulo (route.ts, [id]/route.ts, etc.)
+│   │       ├── page.tsx          # Frontend principal del módulo
+│   │       ├── components/       # Componentes específicos del módulo
+│   │       ├── hooks/            # Hooks personalizados del módulo
+│   │       ├── services/         # Servicios del módulo
+│   │       ├── utils/            # Utilitarios específicos del módulo
+│   │       └── types/            # Tipos TypeScript del módulo
+│   └── api/                      # APIs REST (legacy - migrar a módulos)
 │       ├── auth/                 # Endpoints de autenticación
 │       └── admin/                # Endpoints de administración
-└── 📱 components/ui/              # Componentes shadcn/ui
+└── 📱 components/ui/              # Componentes shadcn/ui globales
 ```
+
+## 🧩 NUEVA ARQUITECTURA MODULAR
+
+### Patrón de Módulos Autocontenidos
+
+Cada módulo nuevo debe seguir esta estructura dentro de `app/(module)/[nombre-modulo]/`:
+
+```
+📂 app/(module)/inventario/  # Ejemplo: Módulo de Inventario
+├── 🌐 api/                  # Backend del módulo
+│   ├── route.ts            # GET, POST para /inventario
+│   ├── [id]/
+│   │   └── route.ts        # GET, PUT, DELETE para /inventario/[id]
+│   ├── categories/
+│   │   └── route.ts        # Sub-endpoints específicos
+│   └── reports/
+│       └── route.ts        # Endpoints de reportes
+├── 📄 page.tsx             # Frontend principal (/inventario)
+├── 📄 create/
+│   └── page.tsx           # Vista creación (/inventario/create)
+├── 📄 [id]/
+│   ├── page.tsx           # Vista detalle (/inventario/[id])
+│   └── edit/
+│       └── page.tsx       # Vista edición (/inventario/[id]/edit)
+├── 🎨 components/          # Componentes específicos del módulo
+│   ├── inventory-list.tsx  # Lista de inventario
+│   ├── inventory-form.tsx  # Formulario de inventario
+│   ├── inventory-card.tsx  # Tarjeta de producto
+│   └── index.ts           # Exportaciones
+├── 🪝 hooks/               # Hooks personalizados del módulo
+│   ├── useInventory.ts    # Hook para gestión de inventario
+│   ├── useCategories.ts   # Hook para categorías
+│   └── index.ts           # Exportaciones
+├── ⚙️ services/            # Servicios del módulo
+│   ├── backend.service.ts  # Lógica de backend (queries, validaciones)
+│   ├── frontend.service.ts # Lógica de frontend (API calls, estado)
+│   └── index.ts           # Exportaciones
+├── 🛠️ utils/               # Utilitarios específicos del módulo
+│   ├── validators.ts      # Validaciones del inventario
+│   ├── formatters.ts      # Formateadores de datos
+│   └── index.ts           # Exportaciones
+└── 📝 types/               # Tipos TypeScript del módulo
+    ├── inventory.types.ts  # Tipos de inventario
+    ├── api.types.ts       # Tipos de API responses
+    └── index.ts           # Exportaciones
+```
+
+### Ventajas de esta Arquitectura:
+
+✅ **Autocontenido**: Cada módulo tiene todo lo necesario en su carpeta
+✅ **Escalable**: Fácil agregar nuevos módulos sin afectar otros
+✅ **Mantenible**: Código relacionado está junto
+✅ **Reutilizable**: Servicios y hooks específicos del dominio
+✅ **Organizado**: Estructura clara y predecible
+
+### Ejemplos de Módulos:
+
+```bash
+# Módulos de negocio
+app/(module)/inventario/     # Gestión de inventario
+app/(module)/ventas/         # Sistema de ventas  
+app/(module)/compras/        # Gestión de compras
+app/(module)/clientes/       # CRM de clientes
+app/(module)/reportes/       # Dashboard de reportes
+app/(module)/contabilidad/   # Sistema contable
+
+# Módulos técnicos
+app/(module)/configuracion/  # Configuraciones del sistema
+app/(module)/integraciones/  # APIs externas
+app/(module)/notificaciones/ # Sistema de notificaciones
+```
+
+### Migración de Admin (Legacy):
+
+Los módulos de administración actuales en `app/admin/` se migrarán gradualmente a:
+- `app/(module)/admin/` → Mantendrá la funcionalidad actual
+- Nuevos módulos seguirán el patrón modular
+
+### Guía para Crear un Nuevo Módulo:
+
+#### 1. **Estructura Base** (Crear estas carpetas):
+```bash
+# Crear estructura completa del módulo
+mkdir -p app/\(module\)/[nombre-modulo]/{api,components,hooks,services,utils,types}
+mkdir -p app/\(module\)/[nombre-modulo]/{create,\[id\]/edit}
+
+# Crear archivos principales
+touch app/\(module\)/[nombre-modulo]/page.tsx                    # Lista principal
+touch app/\(module\)/[nombre-modulo]/create/page.tsx            # Página de creación
+touch app/\(module\)/[nombre-modulo]/\[id\]/page.tsx           # Vista detalle
+touch app/\(module\)/[nombre-modulo]/\[id\]/edit/page.tsx      # Página de edición
+
+# Crear APIs
+touch app/\(module\)/[nombre-modulo]/api/route.ts              # API principal
+touch app/\(module\)/[nombre-modulo]/api/\[id\]/route.ts       # API por ID
+
+# Crear archivos de servicios
+touch app/\(module\)/[nombre-modulo]/services/backend.service.ts
+touch app/\(module\)/[nombre-modulo]/services/frontend.service.ts
+touch app/\(module\)/[nombre-modulo]/types/index.ts
+```
+
+#### 2. **Archivos Esenciales**:
+
+**page.tsx** (Lista principal):
+```tsx
+import { ModuleList } from './components/module-list';
+
+export default function ModulePage() {
+  return <ModuleList />;
+}
+```
+
+**create/page.tsx** (Página de creación):
+```tsx
+import { ModuleForm } from '../components/module-form';
+
+export default function CreateModulePage() {
+  return (
+    <div>
+      <h1>Crear Nuevo</h1>
+      <ModuleForm mode="create" />
+    </div>
+  );
+}
+```
+
+**[id]/page.tsx** (Vista detalle):
+```tsx
+import { ModuleDetail } from '../components/module-detail';
+
+export default function ModuleDetailPage({ 
+  params 
+}: { 
+  params: { id: string } 
+}) {
+  return <ModuleDetail id={params.id} />;
+}
+```
+
+**[id]/edit/page.tsx** (Página de edición):
+```tsx
+import { ModuleForm } from '../../components/module-form';
+
+export default function EditModulePage({ 
+  params 
+}: { 
+  params: { id: string } 
+}) {
+  return (
+    <div>
+      <h1>Editar</h1>
+      <ModuleForm mode="edit" id={params.id} />
+    </div>
+  );
+}
+```
+
+**api/route.ts** (Backend principal):
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { backendService } from '../services/backend.service';
+
+export async function GET(request: NextRequest) {
+  return await backendService.getAll(request);
+}
+
+export async function POST(request: NextRequest) {
+  return await backendService.create(request);
+}
+```
+
+**api/[id]/route.ts** (Backend por ID):
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { backendService } from '../../services/backend.service';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return await backendService.getById(request, params.id);
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return await backendService.update(request, params.id);
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return await backendService.delete(request, params.id);
+}
+```
+
+**services/backend.service.ts** (Lógica de servidor):
+```typescript
+export class BackendService {
+  async getAll(request: NextRequest) {
+    // Lógica de base de datos y validaciones
+  }
+  
+  async create(request: NextRequest) {
+    // Lógica de creación con auditoría
+  }
+}
+
+export const backendService = new BackendService();
+```
+
+**services/frontend.service.ts** (Lógica de cliente):
+```typescript
+export class FrontendService {
+  async fetchAll() {
+    // Llamadas a API desde el frontend
+  }
+  
+  async create(data: any) {
+    // Llamadas de creación desde el frontend
+  }
+}
+
+export const frontendService = new FrontendService();
+```
+
+#### 3. **Tipos TypeScript** (types/index.ts):
+```typescript
+export interface ModuleEntity extends BaseEntity {
+  name: string;
+  description?: string;
+  // Campos específicos del módulo
+}
+
+export interface ModuleApiResponse {
+  success: boolean;
+  data: ModuleEntity[];
+  message?: string;
+}
+```
+
+#### 4. **Rutas de Navegación**:
+- Lista principal: `/[nombre-modulo]`
+- Vista detalle: `/[nombre-modulo]/[id]`
+- Edición: `/[nombre-modulo]/[id]/edit`
+- Creación: `/[nombre-modulo]/create`
 
 ## 🔐 SISTEMA DE AUTENTICACIÓN
 
