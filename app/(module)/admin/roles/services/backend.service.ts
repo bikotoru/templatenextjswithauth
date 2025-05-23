@@ -25,7 +25,7 @@ export class RoleBackendService {
       } = params;
 
       // Construir condiciones WHERE
-      const conditions: Record<string, any> = {};
+      const conditions: Record<string, unknown> = {};
       if (active !== undefined) conditions['r.active'] = active;
       
       // Filter system_hidden roles unless user is Super Admin
@@ -38,7 +38,7 @@ export class RoleBackendService {
       
       // Construir filtros adicionales
       let additionalWhere = '';
-      let additionalParams: Record<string, any> = {};
+      const additionalParams: Record<string, unknown> = {};
       
       if (search) {
         additionalWhere += (whereClause ? ' AND ' : 'WHERE ') + '(r.name LIKE @search OR r.description LIKE @search)';
@@ -240,7 +240,7 @@ export class RoleBackendService {
     try {
       return await executeTransaction(async (transaction) => {
         const updates: string[] = [];
-        const params: Record<string, any> = { id };
+        const params: Record<string, unknown> = { id };
 
         if (data.name !== undefined) {
           updates.push('name = @name');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +56,7 @@ export default function OrganizationStats({ organizationId }: OrganizationStatsP
   const [stats, setStats] = useState<OrganizationStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/organizations/${organizationId}/stats`);
@@ -73,11 +73,11 @@ export default function OrganizationStats({ organizationId }: OrganizationStatsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
 
   useEffect(() => {
     fetchStats();
-  }, [organizationId, fetchStats]);
+  }, [fetchStats]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-CL', {

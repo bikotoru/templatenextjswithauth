@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { UserType, UserSearchParams } from '../types';
 import { UserFrontendService } from '../services/frontend.service';
 import { useAuth } from '@/contexts/auth-context';
@@ -49,7 +49,6 @@ import ChangePasswordForm from './change-password-form';
 interface UserListProps {
   onUserSelect?: (user: UserType) => void;
   onUserEdit?: (user: UserType) => void;
-  onUserCreate?: () => void;
 }
 
 export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
@@ -69,7 +68,7 @@ export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
 
   const pageSize = 10;
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const params: UserSearchParams = {
@@ -90,7 +89,7 @@ export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, selectedRole, currentPage, pageSize]);
 
   const fetchRoles = async () => {
     try {
@@ -105,7 +104,7 @@ export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, searchTerm, selectedRole]);
+  }, [fetchUsers]);
 
   useEffect(() => {
     fetchRoles();

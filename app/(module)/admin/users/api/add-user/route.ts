@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthFromRequest, hasPermission } from '@/utils/auth';
-import { executeQuery, executeQuerySingle, executeTransaction } from '@/utils/sql';
+import { executeQuerySingle, executeTransaction } from '@/utils/sql';
 import bcrypt from 'bcryptjs';
 
 interface AddUserRequest {

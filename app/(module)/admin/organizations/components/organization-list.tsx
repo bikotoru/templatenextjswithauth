@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { OrganizationType, OrganizationSearchParams } from '../types';
 import { OrganizationFrontendService } from '../services/frontend.service';
@@ -62,27 +62,9 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
   const [totalPages, setTotalPages] = useState(0);
   
   const isAdmin = isSuperAdmin();
-  
-  // Solo mostrar si es Super Admin - después de todos los hooks
-  if (!isAdmin) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium">Acceso Restringido</h3>
-          <p className="text-muted-foreground">
-            Solo Super Admin puede gestionar organizaciones
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  // Ya no necesitamos estados para modales
-
   const pageSize = 10;
 
-  const fetchOrganizations = async () => {
+  const fetchOrganizations = useCallback(async () => {
     try {
       setLoading(true);
       const params: OrganizationSearchParams = {
@@ -105,11 +87,28 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, activeFilter, expirationFilter, sortBy, sortOrder, currentPage, pageSize]);
 
   useEffect(() => {
-    fetchOrganizations();
-  }, [searchTerm, activeFilter, expirationFilter, sortBy, sortOrder, currentPage, fetchOrganizations]);
+    if (isAdmin) {
+      fetchOrganizations();
+    }
+  }, [isAdmin, fetchOrganizations]);
+  
+  // Solo mostrar si es Super Admin - después de todos los hooks
+  if (!isAdmin) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium">Acceso Restringido</h3>
+          <p className="text-muted-foreground">
+            Solo Super Admin puede gestionar organizaciones
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleEdit = (organization: OrganizationType) => {
     router.push(`/admin/organizations/${organization.id}/edit`);

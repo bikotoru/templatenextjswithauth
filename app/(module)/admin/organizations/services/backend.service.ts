@@ -587,7 +587,7 @@ export class OrganizationBackendService {
     }
   }
 
-  static async getOrganizationUsers(organizationId: string, user?: UserSession): Promise<QueryResult<any[]>> {
+  static async getOrganizationUsers(organizationId: string, user?: UserSession): Promise<QueryResult<unknown[]>> {
     try {
       // Solo Super Admin puede ver usuarios de organizaciones
       const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
@@ -619,12 +619,12 @@ export class OrganizationBackendService {
         ORDER BY uo.joined_at DESC
       `;
 
-      const users = await executeQuery<any>(query, { organizationId });
+      const users = await executeQuery<Record<string, unknown>>(query, { organizationId });
 
       // Procesar los resultados para incluir roles como array
       const processedUsers = users.map(user => ({
         ...user,
-        roles: user.roles_string ? user.roles_string.split(', ') : []
+        roles: typeof user.roles_string === 'string' ? user.roles_string.split(', ') : []
       }));
 
       return handleQuerySuccess(processedUsers);

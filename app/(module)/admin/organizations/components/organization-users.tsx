@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { UserType } from '@/app/(module)/admin/users/types';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,7 +38,7 @@ export default function OrganizationUsers({ organizationId, organizationName }: 
   const [searchTerm, setSearchTerm] = useState('');
   const [removingUserId, setRemovingUserId] = useState<number | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/organizations/${organizationId}/users`);
@@ -55,7 +55,7 @@ export default function OrganizationUsers({ organizationId, organizationName }: 
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
 
   const handleRemoveUser = async (userId: number, userName: string) => {
     try {
@@ -81,7 +81,7 @@ export default function OrganizationUsers({ organizationId, organizationName }: 
 
   useEffect(() => {
     fetchUsers();
-  }, [organizationId, fetchUsers]);
+  }, [fetchUsers]);
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

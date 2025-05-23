@@ -26,14 +26,14 @@ export class UserBackendService {
       } = params;
 
       // Construir condiciones WHERE
-      const conditions: Record<string, any> = {};
+      const conditions: Record<string, unknown> = {};
       if (active !== undefined) conditions['u.active'] = active;
 
       const { whereClause, params: whereParams } = buildWhereClause(conditions, 'AND');
       
       // Construir filtros adicionales
       let additionalWhere = '';
-      let additionalParams: Record<string, any> = {};
+      const additionalParams: Record<string, unknown> = {};
       
       if (search) {
         additionalWhere += (whereClause ? ' AND ' : 'WHERE ') + '(u.name LIKE @search OR u.email LIKE @search)';
@@ -259,7 +259,7 @@ export class UserBackendService {
     try {
       return await executeTransaction(async (transaction) => {
         const updates: string[] = [];
-        const params: Record<string, any> = { id };
+        const params: Record<string, unknown> = { id };
 
         if (data.email !== undefined) {
           updates.push('email = @email');

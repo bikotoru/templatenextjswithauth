@@ -71,7 +71,7 @@ export async function DELETE(
         organizationId,
         currentUserId: user.id
       });
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         { error: 'Error al remover usuario de la organización' },
         { status: 500 }

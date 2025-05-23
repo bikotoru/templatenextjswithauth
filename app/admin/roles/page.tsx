@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RoleType } from '@/app/(module)/admin/roles/types';
 import DashboardLayout from '@/app/(module)/dashboard/components/dashboard-layout';
@@ -11,8 +10,8 @@ export default function RolesPage() {
   const router = useRouter();
   //const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
 
-  const handleRoleSelect = (role: RoleType) => {
-    //setSelectedRole(role);
+  const handleRoleSelect = (_role: RoleType) => {
+    // Reserved for future use
   };
 
   const handleRoleEdit = (role: RoleType) => {

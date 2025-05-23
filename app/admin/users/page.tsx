@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserType } from '@/app/(module)/admin/users/types';
 import DashboardLayout from '@/app/(module)/dashboard/components/dashboard-layout';
@@ -9,18 +8,13 @@ import { Toaster } from '@/components/ui/sonner';
 
 export default function UsersPage() {
   const router = useRouter();
-  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
 
-  const handleUserSelect = (user: UserType) => {
-    setSelectedUser(user);
+  const handleUserSelect = (_user: UserType) => {
+    // Reserved for future use
   };
 
   const handleUserEdit = (user: UserType) => {
     router.push(`/admin/users/${user.id}/edit`);
-  };
-
-  const handleUserCreate = () => {
-    router.push('/admin/users/create');
   };
 
   return (
@@ -29,7 +23,6 @@ export default function UsersPage() {
         <UserList
           onUserSelect={handleUserSelect}
           onUserEdit={handleUserEdit}
-          onUserCreate={handleUserCreate}
         />
       </div>
       <Toaster />

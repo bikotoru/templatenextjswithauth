@@ -147,11 +147,11 @@ export default function AddUserForm({ open, onOpenChange, onSuccess }: AddUserFo
 
   // Agrupar permisos por módulo
   const groupedPermissions = permissions.reduce((acc, permission) => {
-    const module = permission.module || 'general';
-    if (!acc[module]) {
-      acc[module] = [];
+    const moduleKey = permission.module || 'general';
+    if (!acc[moduleKey]) {
+      acc[moduleKey] = [];
     }
-    acc[module].push(permission);
+    acc[moduleKey].push(permission);
     return acc;
   }, {} as Record<string, typeof permissions>);
 
@@ -256,7 +256,7 @@ export default function AddUserForm({ open, onOpenChange, onSuccess }: AddUserFo
                 onChange={(e) => setFormData(prev => ({ ...prev, temporaryPassword: e.target.value }))}
               />
               <p className="text-xs text-muted-foreground">
-                Si se deja vacío, se generará 123456 como contraseña temporal
+                Si se deja vacío, se generará &quot;123456&quot; como contraseña temporal
               </p>
             </div>
           </div>

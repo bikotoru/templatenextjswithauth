@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthFromRequest, hasPermission } from '@/utils/auth';
-import { executeQuery, executeQuerySingle, executeTransaction } from '@/utils/sql';
+import { executeQuerySingle, executeTransaction } from '@/utils/sql';
 import bcrypt from 'bcryptjs';
 
 interface ChangePasswordRequest {
@@ -97,7 +97,7 @@ export async function PUT(
     }
 
     // 5. Cambiar la contraseña
-    const result = await executeTransaction(async (transaction) => {
+    await executeTransaction(async (transaction) => {
       // Hash de la nueva contraseña
       const hashedPassword = await bcrypt.hash(body.newPassword, 12);
 

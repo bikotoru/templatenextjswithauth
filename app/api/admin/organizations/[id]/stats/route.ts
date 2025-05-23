@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, executeQuerySingle } from '@/utils/sql';
+import { executeQuerySingle } from '@/utils/sql';
 import { verifyAuthFromRequest } from '@/utils/auth';
 
 // GET /api/admin/organizations/[id]/stats - Obtener estadísticas de una organización

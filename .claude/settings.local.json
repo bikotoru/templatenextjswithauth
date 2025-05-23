@@ -14,7 +14,8 @@
       "Bash(true)",
       "Bash(ls:*)",
       "Bash(npm run dev:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(bun run:*)"
     ],
     "deny": []
   }
