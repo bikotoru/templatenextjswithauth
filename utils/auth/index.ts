@@ -593,8 +593,8 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
       expiresAt.setHours(expiresAt.getHours() + 24); // 24 horas
 
       await executeQuery(
-        `INSERT INTO user_sessions (user_id, organization_id, session_token, expires_at, created_at, updated_at, created_by_id, updated_by_id, last_activity)
-         VALUES (@userId, @organizationId, @token, @expiresAt, GETDATE(), GETDATE(), @userId, @userId, GETDATE())`,
+        `INSERT INTO user_sessions (session_token, user_id, organization_id, expires_at, created_at, updated_at, created_by_id, updated_by_id, last_activity)
+         VALUES (@token, @userId, @organizationId, @expiresAt, GETDATE(), GETDATE(), @userId, @userId, GETDATE())`,
         { userId, organizationId, token, expiresAt }
       );
     } catch (error) {

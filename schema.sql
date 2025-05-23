@@ -1,8 +1,35 @@
 -- ============================================================================
--- LIMPIEZA INICIAL DE TABLAS (SI EXISTEN)
+-- SCRIPT AUTO-EJECUTABLE PARA SISTEMA MULTI-TENANT CON VARIABLES DEL SISTEMA
+-- Base de datos: SQL Server
+-- Versión: 3.1 Con Variables del Sistema
 -- ============================================================================
 
+-- ============================================================================
+-- LIMPIEZA INICIAL COMPLETA (SI EXISTEN)
+-- ============================================================================
+
+-- Drop stored procedures
+IF OBJECT_ID('sp_GenerateNextNumber', 'P') IS NOT NULL DROP PROCEDURE sp_GenerateNextNumber;
+GO
+
+-- Drop triggers
+IF OBJECT_ID('tr_variable_values_update', 'TR') IS NOT NULL DROP TRIGGER tr_variable_values_update;
+IF OBJECT_ID('tr_incremental_config_update', 'TR') IS NOT NULL DROP TRIGGER tr_incremental_config_update;
+IF OBJECT_ID('tr_system_variables_update', 'TR') IS NOT NULL DROP TRIGGER tr_system_variables_update;
+IF OBJECT_ID('tr_activity_logs_update', 'TR') IS NOT NULL DROP TRIGGER tr_activity_logs_update;
+IF OBJECT_ID('tr_user_sessions_update', 'TR') IS NOT NULL DROP TRIGGER tr_user_sessions_update;
+IF OBJECT_ID('tr_user_organizations_update', 'TR') IS NOT NULL DROP TRIGGER tr_user_organizations_update;
+IF OBJECT_ID('tr_users_update', 'TR') IS NOT NULL DROP TRIGGER tr_users_update;
+IF OBJECT_ID('tr_organizations_update', 'TR') IS NOT NULL DROP TRIGGER tr_organizations_update;
+GO
+
 -- Drop tables in correct order (respecting foreign key dependencies)
+IF OBJECT_ID('system_variable_number_history', 'U') IS NOT NULL DROP TABLE system_variable_number_history;
+IF OBJECT_ID('system_variable_change_log', 'U') IS NOT NULL DROP TABLE system_variable_change_log;
+IF OBJECT_ID('system_variable_validations', 'U') IS NOT NULL DROP TABLE system_variable_validations;
+IF OBJECT_ID('system_variable_values', 'U') IS NOT NULL DROP TABLE system_variable_values;
+IF OBJECT_ID('system_variable_incremental_config', 'U') IS NOT NULL DROP TABLE system_variable_incremental_config;
+IF OBJECT_ID('system_variables', 'U') IS NOT NULL DROP TABLE system_variables;
 IF OBJECT_ID('user_role_assignments', 'U') IS NOT NULL DROP TABLE user_role_assignments;
 IF OBJECT_ID('role_permission_assignments', 'U') IS NOT NULL DROP TABLE role_permission_assignments;
 IF OBJECT_ID('user_permission_assignments', 'U') IS NOT NULL DROP TABLE user_permission_assignments;
@@ -18,7 +45,7 @@ GO
 -- ============================================================================
 -- SCHEMA MULTI-TENANT PARA SISTEMA DE GESTIÓN DE USUARIOS, ROLES Y PERMISOS
 -- Base de datos: SQL Server
--- Versión: 3.0 Multi-Tenant con Super Admin
+-- Versión: 3.1 Multi-Tenant con Super Admin y Variables del Sistema
 -- ============================================================================
 
 -- Tabla de Organizaciones (Tenants)
@@ -58,42 +85,17 @@ CREATE TABLE users (
     -- Campos de auditoría obligatorios
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    created_by_id INT NULL, -- Referencia a users.id (quien creó este usuario)
-    updated_by_id INT NULL, -- Referencia a users.id (quien lo modificó por última vez)
+    created_by_id INT NULL, -- Para el primer usuario será NULL
+    updated_by_id INT NULL,
+    
+    FOREIGN KEY (created_by_id) REFERENCES users(id),
+    FOREIGN KEY (updated_by_id) REFERENCES users(id),
     
     -- Índices
     INDEX IX_users_email (email),
     INDEX IX_users_active (active),
     INDEX IX_users_created_at (created_at),
     INDEX IX_users_updated_at (updated_at)
-);
-GO
-
--- Tabla de Relación Usuario-Organización (Many-to-Many)
-CREATE TABLE user_organizations (
-    id INT IDENTITY(1,1) PRIMARY KEY,
-    user_id INT NOT NULL,
-    organization_id UNIQUEIDENTIFIER NOT NULL,
-    joined_at DATETIME2 DEFAULT GETDATE(),
-    active BIT DEFAULT 1,
-    
-    -- Campos de auditoría obligatorios
-    created_at DATETIME2 DEFAULT GETDATE(),
-    updated_at DATETIME2 DEFAULT GETDATE(),
-    created_by_id INT NOT NULL,
-    updated_by_id INT NOT NULL,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (organization_id) REFERENCES organizations(id),
-    FOREIGN KEY (created_by_id) REFERENCES users(id),
-    FOREIGN KEY (updated_by_id) REFERENCES users(id),
-    
-    -- Índices y constraints
-    UNIQUE(user_id, organization_id),
-    INDEX IX_user_organizations_user_id (user_id),
-    INDEX IX_user_organizations_organization_id (organization_id),
-    INDEX IX_user_organizations_active (active),
-    INDEX IX_user_organizations_created_at (created_at)
 );
 GO
 
@@ -159,12 +161,40 @@ CREATE TABLE roles (
 );
 GO
 
+-- Tabla de Relación Usuario-Organización (Many-to-Many)
+CREATE TABLE user_organizations (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NOT NULL,
+    organization_id UNIQUEIDENTIFIER NOT NULL,
+    joined_at DATETIME2 DEFAULT GETDATE(),
+    active BIT DEFAULT 1,
+    
+    -- Campos de auditoría obligatorios
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    created_by_id INT NOT NULL,
+    updated_by_id INT NOT NULL,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
+    FOREIGN KEY (created_by_id) REFERENCES users(id),
+    FOREIGN KEY (updated_by_id) REFERENCES users(id),
+    
+    -- Constraints
+    UNIQUE(user_id, organization_id), -- Un usuario solo puede estar una vez por organización
+    INDEX IX_user_organizations_user_id (user_id),
+    INDEX IX_user_organizations_organization_id (organization_id),
+    INDEX IX_user_organizations_active (active),
+    INDEX IX_user_organizations_joined_at (joined_at)
+);
+GO
+
 -- Tabla de Asignación Rol-Permiso (Many-to-Many)
 CREATE TABLE role_permission_assignments (
     id INT IDENTITY(1,1) PRIMARY KEY,
     role_id INT NOT NULL,
     permission_id INT NOT NULL,
-    organization_id UNIQUEIDENTIFIER NOT NULL,
+    organization_id UNIQUEIDENTIFIER NOT NULL, -- Para consistencia
     assigned_at DATETIME2 DEFAULT GETDATE(),
     active BIT DEFAULT 1,
     
@@ -181,16 +211,15 @@ CREATE TABLE role_permission_assignments (
     FOREIGN KEY (updated_by_id) REFERENCES users(id),
     
     -- Constraints
-    UNIQUE(role_id, permission_id, organization_id),
+    UNIQUE(role_id, permission_id), -- Un permiso solo puede estar una vez por rol
     INDEX IX_role_permission_assignments_role_id (role_id),
     INDEX IX_role_permission_assignments_permission_id (permission_id),
     INDEX IX_role_permission_assignments_organization_id (organization_id),
-    INDEX IX_role_permission_assignments_active (active),
-    INDEX IX_role_permission_assignments_created_at (created_at)
+    INDEX IX_role_permission_assignments_active (active)
 );
 GO
 
--- Tabla de Asignación Usuario-Rol (Many-to-Many, Por Organización)
+-- Tabla de Asignación Usuario-Rol (Many-to-Many)
 CREATE TABLE user_role_assignments (
     id INT IDENTITY(1,1) PRIMARY KEY,
     user_id INT NOT NULL,
@@ -212,16 +241,15 @@ CREATE TABLE user_role_assignments (
     FOREIGN KEY (updated_by_id) REFERENCES users(id),
     
     -- Constraints
-    UNIQUE(user_id, role_id, organization_id),
+    UNIQUE(user_id, role_id, organization_id), -- Un usuario solo puede tener un rol una vez por organización
     INDEX IX_user_role_assignments_user_id (user_id),
     INDEX IX_user_role_assignments_role_id (role_id),
     INDEX IX_user_role_assignments_organization_id (organization_id),
-    INDEX IX_user_role_assignments_active (active),
-    INDEX IX_user_role_assignments_created_at (created_at)
+    INDEX IX_user_role_assignments_active (active)
 );
 GO
 
--- Tabla de Asignación Usuario-Permiso Directo (Many-to-Many, Por Organización)
+-- Tabla de Asignación Usuario-Permiso Directo (Many-to-Many) - Para permisos específicos
 CREATE TABLE user_permission_assignments (
     id INT IDENTITY(1,1) PRIMARY KEY,
     user_id INT NOT NULL,
@@ -243,29 +271,28 @@ CREATE TABLE user_permission_assignments (
     FOREIGN KEY (updated_by_id) REFERENCES users(id),
     
     -- Constraints
-    UNIQUE(user_id, permission_id, organization_id),
+    UNIQUE(user_id, permission_id, organization_id), -- Un usuario solo puede tener un permiso una vez por organización
     INDEX IX_user_permission_assignments_user_id (user_id),
     INDEX IX_user_permission_assignments_permission_id (permission_id),
     INDEX IX_user_permission_assignments_organization_id (organization_id),
-    INDEX IX_user_permission_assignments_active (active),
-    INDEX IX_user_permission_assignments_created_at (created_at)
+    INDEX IX_user_permission_assignments_active (active)
 );
 GO
 
--- Tabla de Sesiones de Usuario (Para autenticación y tracking de organización activa)
+-- Tabla de Sesiones de Usuario (Para logout remoto y control de sesiones)
 CREATE TABLE user_sessions (
-    id INT IDENTITY(1,1) PRIMARY KEY,
+    session_token NVARCHAR(500) PRIMARY KEY, -- Session token/ID (JWT puede ser largo)
     user_id INT NOT NULL,
-    organization_id UNIQUEIDENTIFIER NULL, -- NULL para super admin
-    session_token NVARCHAR(500) NOT NULL UNIQUE,
-    expires_at DATETIME2 NOT NULL,
-    last_activity DATETIME2 DEFAULT GETDATE(),
-    
-    -- Campos de auditoría obligatorios (sin organization_id porque es tabla de sistema)
+    organization_id UNIQUEIDENTIFIER NOT NULL,
+    ip_address NVARCHAR(45), -- Para IPv4 e IPv6
+    user_agent NVARCHAR(1000),
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    created_by_id INT NOT NULL, -- El usuario que creó la sesión (normalmente el mismo user_id)
-    updated_by_id INT NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    last_activity DATETIME2 DEFAULT GETDATE(),
+    active BIT DEFAULT 1,
+    created_by_id INT NULL,
+    updated_by_id INT NULL,
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (organization_id) REFERENCES organizations(id),
@@ -275,23 +302,23 @@ CREATE TABLE user_sessions (
     -- Índices
     INDEX IX_user_sessions_user_id (user_id),
     INDEX IX_user_sessions_organization_id (organization_id),
-    INDEX IX_user_sessions_session_token (session_token),
     INDEX IX_user_sessions_expires_at (expires_at),
-    INDEX IX_user_sessions_created_at (created_at)
+    INDEX IX_user_sessions_active (active),
+    INDEX IX_user_sessions_last_activity (last_activity)
 );
 GO
 
--- Tabla de Log de Actividades (Por Organización)
+-- Tabla de Log de Actividades (Para auditoría)
 CREATE TABLE activity_logs (
     id INT IDENTITY(1,1) PRIMARY KEY,
     user_id INT NOT NULL,
     organization_id UNIQUEIDENTIFIER NOT NULL,
-    action NVARCHAR(100) NOT NULL, -- 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', etc.
-    resource_type NVARCHAR(100) NOT NULL, -- 'USER', 'ROLE', 'PERMISSION', etc.
+    action NVARCHAR(100) NOT NULL, -- ej: 'create', 'update', 'delete', 'login'
+    resource_type NVARCHAR(100), -- ej: 'user', 'role', 'permission'
     resource_id NVARCHAR(100), -- ID del recurso afectado
-    details NVARCHAR(MAX), -- JSON con detalles de la acción
-    ip_address NVARCHAR(45), -- IPv4 o IPv6
-    user_agent NVARCHAR(500),
+    details NVARCHAR(MAX), -- JSON con detalles adicionales
+    ip_address NVARCHAR(45),
+    user_agent NVARCHAR(1000),
     
     -- Campos de auditoría obligatorios
     created_at DATETIME2 DEFAULT GETDATE(),
@@ -312,362 +339,6 @@ CREATE TABLE activity_logs (
     INDEX IX_activity_logs_created_at (created_at)
 );
 GO
-
--- ============================================================================
--- TRIGGERS PARA ACTUALIZACIÓN AUTOMÁTICA DE CAMPOS DE AUDITORÍA
--- ============================================================================
-
--- Trigger para organizations
-CREATE TRIGGER tr_organizations_update
-ON organizations
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE organizations 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para users
-CREATE TRIGGER tr_users_update
-ON users
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE users 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para user_organizations
-CREATE TRIGGER tr_user_organizations_update
-ON user_organizations
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE user_organizations 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para permissions
-CREATE TRIGGER tr_permissions_update
-ON permissions
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE permissions 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para roles
-CREATE TRIGGER tr_roles_update
-ON roles
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE roles 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para role_permission_assignments
-CREATE TRIGGER tr_role_permission_assignments_update
-ON role_permission_assignments
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE role_permission_assignments 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para user_role_assignments
-CREATE TRIGGER tr_user_role_assignments_update
-ON user_role_assignments
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE user_role_assignments 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para user_permission_assignments
-CREATE TRIGGER tr_user_permission_assignments_update
-ON user_permission_assignments
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE user_permission_assignments 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para user_sessions
-CREATE TRIGGER tr_user_sessions_update
-ON user_sessions
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE user_sessions 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- Trigger para activity_logs
-CREATE TRIGGER tr_activity_logs_update
-ON activity_logs
-AFTER UPDATE
-AS
-BEGIN
-    UPDATE activity_logs 
-    SET updated_at = GETDATE()
-    WHERE id IN (SELECT id FROM inserted);
-END;
-GO
-
--- ============================================================================
--- STORED PROCEDURES PARA CONSULTAS MULTI-TENANT
--- ============================================================================
-
--- Procedimiento para obtener permisos de usuario en una organización
-CREATE PROCEDURE sp_get_user_permissions
-    @user_id INT,
-    @organization_id UNIQUEIDENTIFIER
-AS
-BEGIN
-    SELECT DISTINCT p.name
-    FROM permissions p
-    WHERE p.organization_id = @organization_id
-    AND p.active = 1
-    AND p.id IN (
-        -- Permisos directos
-        SELECT up.permission_id 
-        FROM user_permission_assignments up 
-        WHERE up.user_id = @user_id 
-        AND up.organization_id = @organization_id
-        AND up.active = 1
-        
-        UNION
-        
-        -- Permisos por roles
-        SELECT rp.permission_id 
-        FROM role_permission_assignments rp
-        INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
-        WHERE ur.user_id = @user_id 
-        AND ur.organization_id = @organization_id
-        AND ur.active = 1
-        AND rp.active = 1
-    )
-    ORDER BY p.name;
-END;
-GO
-
--- Procedimiento para verificar si un usuario tiene un permiso específico
-CREATE PROCEDURE sp_check_user_permission
-    @user_id INT,
-    @permission_name NVARCHAR(100),
-    @organization_id UNIQUEIDENTIFIER
-AS
-BEGIN
-    DECLARE @has_permission BIT = 0;
-    
-    IF EXISTS (
-        SELECT 1
-        FROM permissions p
-        WHERE p.name = @permission_name
-        AND p.organization_id = @organization_id
-        AND p.active = 1
-        AND p.id IN (
-            -- Permisos directos
-            SELECT up.permission_id 
-            FROM user_permission_assignments up 
-            WHERE up.user_id = @user_id 
-            AND up.organization_id = @organization_id
-            AND up.active = 1
-            
-            UNION
-            
-            -- Permisos por roles
-            SELECT rp.permission_id 
-            FROM role_permission_assignments rp
-            INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
-            WHERE ur.user_id = @user_id 
-            AND ur.organization_id = @organization_id
-            AND ur.active = 1
-            AND rp.active = 1
-        )
-    )
-    BEGIN
-        SET @has_permission = 1;
-    END
-    
-    SELECT @has_permission as has_permission;
-END;
-GO
-
--- ============================================================================
--- DATOS INICIALES DEL SISTEMA
--- ============================================================================
-
-PRINT 'Inicializando datos del sistema...';
-
--- Crear una organización temporal del sistema para los permisos ocultos
-DECLARE @system_org_id UNIQUEIDENTIFIER = NEWID();
-
-INSERT INTO organizations (id, name, logo, rut, active, created_at, updated_at)
-VALUES (@system_org_id, 'SYSTEM', NULL, NULL, 1, GETDATE(), GETDATE());
-
--- Crear el usuario Super Admin
-DECLARE @superadmin_id INT;
-
-INSERT INTO users (email, password_hash, name, avatar, active, created_at, updated_at)
-VALUES ('superadmin@system.local', '$2b$10$3sM.4iwzmjxcXSUS25rHj.JYqj2BxwbZpkFFncLaLoE2l2goSa94C', 'Super Admin', NULL, 1, GETDATE(), GETDATE());
-
-SET @superadmin_id = SCOPE_IDENTITY();
-
--- Actualizar los campos created_by_id para la organización sistema
-UPDATE organizations 
-SET created_by_id = @superadmin_id, updated_by_id = @superadmin_id 
-WHERE id = @system_org_id;
-
--- Actualizar los campos created_by_id para el super admin
-UPDATE users 
-SET created_by_id = @superadmin_id, updated_by_id = @superadmin_id 
-WHERE id = @superadmin_id;
-
--- Crear permisos del sistema (OCULTOS)
-INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
-('system:manage', 'Gestión completa del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('dashboard:view', 'Acceso al dashboard', 'dashboard', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('admin:access', 'Acceso al panel de administración', 'admin', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('organizations:create', 'Crear nuevas organizaciones', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('organizations:edit', 'Modificar organizaciones existentes', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('organizations:deactivate', 'Desactivar organizaciones', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('organizations:view_all', 'Ver todas las organizaciones', 'organizations', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:create_global', 'Crear usuarios del sistema', 'users', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:assign_organizations', 'Asignar usuarios a organizaciones', 'users', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:manage_global', 'Gestionar usuarios globalmente', 'users', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('roles:manage_system', 'Crear/modificar roles de sistema', 'roles', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Crear el rol Super Admin (OCULTO)
-DECLARE @superadmin_role_id INT;
-
-INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES ('Super Admin', 'Administrador del sistema con acceso completo', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
-SET @superadmin_role_id = SCOPE_IDENTITY();
-
--- Asignar todos los permisos del sistema al rol Super Admin
-INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @superadmin_role_id,
-    p.id,
-    @system_org_id,
-    GETDATE(),
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-FROM permissions p 
-WHERE p.organization_id = @system_org_id AND p.system_hidden = 1;
-
--- Asignar el rol Super Admin al usuario Super Admin
-INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES (@superadmin_id, @superadmin_role_id, @system_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Asignar el Super Admin a la organización del sistema
-INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES (@superadmin_id, @system_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Crear organización de ejemplo
-DECLARE @demo_org_id UNIQUEIDENTIFIER = NEWID();
-
-INSERT INTO organizations (id, name, logo, rut, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES (@demo_org_id, 'Empresa Demo', NULL, '12345678-9', 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Crear permisos básicos para la organización demo
-INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
-('users:view', 'Ver usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:create', 'Crear usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:edit', 'Editar usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('users:delete', 'Eliminar usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('roles:view', 'Ver roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('roles:create', 'Crear roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('roles:edit', 'Editar roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('roles:delete', 'Eliminar roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('permissions:view', 'Ver permisos', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
-('dashboard:view', 'Ver dashboard', 'dashboard', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Crear roles básicos para la organización demo
-DECLARE @admin_role_id INT, @user_role_id INT;
-
-INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES ('Admin', 'Administrador de la organización', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-SET @admin_role_id = SCOPE_IDENTITY();
-
-INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES ('Usuario', 'Usuario básico', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-SET @user_role_id = SCOPE_IDENTITY();
-
--- Asignar todos los permisos básicos al rol Admin
-INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @admin_role_id,
-    p.id,
-    @demo_org_id,
-    GETDATE(),
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-FROM permissions p 
-WHERE p.organization_id = @demo_org_id AND p.system_hidden = 0;
-
--- Asignar permisos básicos al rol Usuario
-INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @user_role_id,
-    p.id,
-    @demo_org_id,
-    GETDATE(),
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-FROM permissions p 
-WHERE p.organization_id = @demo_org_id 
-AND p.name IN ('users:view', 'dashboard:view');
-
--- Crear usuario administrador de ejemplo
-DECLARE @demo_admin_id INT;
-
-INSERT INTO users (email, password_hash, name, avatar, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES ('admin@demo.com', '$2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq', 'Admin Demo', NULL, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
-SET @demo_admin_id = SCOPE_IDENTITY();
-
--- Asignar el usuario demo a la organización demo
-INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES (@demo_admin_id, @demo_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
-
--- Asignar el rol Admin al usuario demo
-INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-VALUES (@demo_admin_id, @admin_role_id, @demo_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
 
 -- ============================================================================
 -- SISTEMA DE VARIABLES DEL SISTEMA
@@ -855,13 +526,12 @@ BEGIN
             @Prefix = ISNULL(sic.prefix, ''),
             @Suffix = ISNULL(sic.suffix, ''),
             @NumberLength = ISNULL(sic.number_length, 8)
-        FROM system_variables sv
+        FROM system_variables sv WITH (UPDLOCK, ROWLOCK)
         INNER JOIN system_variable_incremental_config sic ON sv.id = sic.system_variable_id
         WHERE sv.organization_id = @OrganizationId 
             AND sv.variable_key = @VariableKey 
             AND sv.variable_type = 'incremental'
-            AND sv.is_active = 1
-        WITH (UPDLOCK, ROWLOCK);
+            AND sv.is_active = 1;
         
         IF @VariableId IS NULL
         BEGIN
@@ -912,8 +582,68 @@ END;
 GO
 
 -- ============================================================================
--- TRIGGERS PARA VARIABLES DEL SISTEMA
+-- TRIGGERS PARA ACTUALIZACIÓN AUTOMÁTICA DE CAMPOS DE AUDITORÍA
 -- ============================================================================
+
+-- Trigger para organizations
+CREATE TRIGGER tr_organizations_update
+ON organizations
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE organizations 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- Trigger para users
+CREATE TRIGGER tr_users_update
+ON users
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE users 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- Trigger para user_sessions
+CREATE TRIGGER tr_user_sessions_update
+ON user_sessions
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE user_sessions 
+    SET updated_at = GETDATE()
+    WHERE session_token IN (SELECT session_token FROM inserted);
+END;
+GO
+
+-- Trigger para user_organizations
+CREATE TRIGGER tr_user_organizations_update
+ON user_organizations
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE user_organizations 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
+
+-- Trigger para activity_logs
+CREATE TRIGGER tr_activity_logs_update
+ON activity_logs
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE activity_logs 
+    SET updated_at = GETDATE()
+    WHERE id IN (SELECT id FROM inserted);
+END;
+GO
 
 -- Trigger para system_variables
 CREATE TRIGGER tr_system_variables_update
@@ -952,142 +682,158 @@ END;
 GO
 
 -- ============================================================================
--- PERMISOS PARA VARIABLES DEL SISTEMA
+-- DATOS INICIALES - CREACIÓN DE ORGANIZACIONES Y USUARIOS
 -- ============================================================================
 
--- Agregar permisos para variables del sistema a la organización SYSTEM
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+-- Crear organización del sistema
+DECLARE @system_org_id UNIQUEIDENTIFIER = NEWID();
+
+INSERT INTO organizations (id, name, logo, rut, active, created_at, updated_at)
+VALUES (@system_org_id, 'SYSTEM', NULL, NULL, 1, GETDATE(), GETDATE());
+
+-- Crear usuario Super Admin (sin organización específica)
+DECLARE @superadmin_id INT;
+
+INSERT INTO users (email, password_hash, name, avatar, active, created_at, updated_at)
+VALUES ('superadmin@system.local', '$2b$10$aVPNcGS4MzjY1frVqeflDO5KsaF7uC5hT15qCI/K0JTclINLaxSaW', 'Super Admin', NULL, 1, GETDATE(), GETDATE());
+
+SET @superadmin_id = SCOPE_IDENTITY();
+
+-- Actualizar la organización del sistema con el superadmin como creador
+UPDATE organizations 
+SET created_by_id = @superadmin_id, updated_by_id = @superadmin_id 
+WHERE id = @system_org_id;
+
+-- Actualizar el usuario superadmin con auto-referencia
+UPDATE users 
+SET created_by_id = @superadmin_id, updated_by_id = @superadmin_id 
+WHERE id = @superadmin_id;
+
+-- Crear permisos del sistema (ocultos)
+INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
+('system:superadmin', 'Acceso total al sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('admin:access', 'Acceso al panel de administración', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:organizations:create', 'Crear organizaciones', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:organizations:edit', 'Editar organizaciones', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:organizations:delete', 'Eliminar organizaciones', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:organizations:view', 'Ver organizaciones', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('organizations:view_all', 'Ver todas las organizaciones', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:users:create', 'Crear usuarios del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:users:edit', 'Editar usuarios del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:users:delete', 'Eliminar usuarios del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:users:view', 'Ver usuarios del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:permissions:manage', 'Gestionar permisos del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system:roles:manage', 'Gestionar roles del sistema', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Crear rol Super Admin (oculto del sistema)
+DECLARE @superadmin_role_id INT;
+
+INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES ('Super Admin', 'Administrador del sistema con acceso total', 'system', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+SET @superadmin_role_id = SCOPE_IDENTITY();
+
+-- Asignar todos los permisos del sistema al rol Super Admin
+INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
 SELECT 
+    @superadmin_role_id,
+    p.id,
     @system_org_id,
-    'system_variables:view',
-    'Ver variables del sistema',
-    'system_variables',
-    'view',
+    GETDATE(),
     1,
     GETDATE(),
     GETDATE(),
     @superadmin_id,
     @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:view');
+FROM permissions p 
+WHERE p.organization_id = @system_org_id AND p.system_hidden = 1;
 
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
+-- Asignar el rol Super Admin al usuario Super Admin
+INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES (@superadmin_id, @superadmin_role_id, @system_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Asignar el Super Admin a la organización del sistema
+INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES (@superadmin_id, @system_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Crear organización de ejemplo
+DECLARE @demo_org_id UNIQUEIDENTIFIER = NEWID();
+
+INSERT INTO organizations (id, name, logo, rut, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES (@demo_org_id, 'Empresa Demo', NULL, '12345678-9', 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Crear permisos básicos para la organización demo
+INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
+('users:view', 'Ver usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('users:create', 'Crear usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('users:edit', 'Editar usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('users:delete', 'Eliminar usuarios', 'users', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('roles:view', 'Ver roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('roles:create', 'Crear roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('roles:edit', 'Editar roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('roles:delete', 'Eliminar roles', 'roles', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('permissions:view', 'Ver permisos', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('dashboard:view', 'Ver dashboard', 'dashboard', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:view', 'Ver variables del sistema', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:create', 'Crear variables del sistema', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:edit', 'Editar variables del sistema', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:generate', 'Generar números incrementales', 'system_variables', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Crear permisos para variables del sistema en la organización SYSTEM
+INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id) VALUES
+('system_variables:view', 'Ver variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:create', 'Crear variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:edit', 'Editar variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:delete', 'Eliminar variables del sistema', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id),
+('system_variables:generate', 'Generar números incrementales', 'system_variables', @system_org_id, 1, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Asignar permisos de variables del sistema al rol Super Admin
+INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
 SELECT 
+    @superadmin_role_id,
+    p.id,
     @system_org_id,
-    'system_variables:create',
-    'Crear variables del sistema',
-    'system_variables',
-    'create',
+    GETDATE(),
     1,
     GETDATE(),
     GETDATE(),
     @superadmin_id,
     @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:create');
+FROM permissions p 
+WHERE p.organization_id = @system_org_id AND p.category = 'system_variables';
 
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @system_org_id,
-    'system_variables:edit',
-    'Editar variables del sistema',
-    'system_variables',
-    'edit',
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:edit');
+-- Crear roles básicos para la organización demo
+DECLARE @admin_role_id INT, @user_role_id INT;
 
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @system_org_id,
-    'system_variables:delete',
-    'Eliminar variables del sistema',
-    'system_variables',
-    'delete',
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:delete');
+INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES ('Admin', 'Administrador de la organización', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+SET @admin_role_id = SCOPE_IDENTITY();
 
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @system_org_id,
-    'system_variables:generate',
-    'Generar números incrementales',
-    'system_variables',
-    'generate',
-    1,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @system_org_id AND name = 'system_variables:generate');
+INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES ('Usuario', 'Usuario básico', 'permissions', @demo_org_id, 0, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+SET @user_role_id = SCOPE_IDENTITY();
 
--- Agregar permisos básicos para la organización demo
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @demo_org_id,
-    'system_variables:view',
-    'Ver variables del sistema',
-    'system_variables',
-    'view',
-    0,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:view');
-
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @demo_org_id,
-    'system_variables:create',
-    'Crear variables del sistema',
-    'system_variables',
-    'create',
-    0,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:create');
-
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @demo_org_id,
-    'system_variables:edit',
-    'Editar variables del sistema',
-    'system_variables',
-    'edit',
-    0,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:edit');
-
-INSERT INTO permissions (organization_id, name, description, resource, action, system_hidden, created_at, updated_at, created_by_id, updated_by_id)
-SELECT 
-    @demo_org_id,
-    'system_variables:generate',
-    'Generar números incrementales',
-    'system_variables',
-    'generate',
-    0,
-    GETDATE(),
-    GETDATE(),
-    @superadmin_id,
-    @superadmin_id
-WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE organization_id = @demo_org_id AND name = 'system_variables:generate');
-
--- Asignar permisos al rol Admin de la organización demo
-INSERT INTO role_permission_assignments (role_id, permission_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+-- Asignar todos los permisos básicos al rol Admin
+INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
 SELECT 
     @admin_role_id,
     p.id,
+    @demo_org_id,
+    GETDATE(),
+    1,
+    GETDATE(),
+    GETDATE(),
+    @superadmin_id,
+    @superadmin_id
+FROM permissions p 
+WHERE p.organization_id = @demo_org_id;
+
+-- Asignar permisos básicos al rol Usuario
+INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+SELECT 
+    @user_role_id,
+    p.id,
+    @demo_org_id,
     GETDATE(),
     1,
     GETDATE(),
@@ -1096,11 +842,23 @@ SELECT
     @superadmin_id
 FROM permissions p 
 WHERE p.organization_id = @demo_org_id 
-AND p.name IN ('system_variables:view', 'system_variables:create', 'system_variables:edit', 'system_variables:generate')
-AND NOT EXISTS (
-    SELECT 1 FROM role_permission_assignments rpa 
-    WHERE rpa.role_id = @admin_role_id AND rpa.permission_id = p.id
-);
+AND p.name IN ('users:view', 'dashboard:view');
+
+-- Crear usuario administrador de ejemplo
+DECLARE @demo_admin_id INT;
+
+INSERT INTO users (email, password_hash, name, avatar, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES ('admin@demo.com', '$2b$12$HujzpkQIRv4advW5CN94m.9eR40znxsmrmgn8DOIHSJocmUjtVxgq', 'Admin Demo', NULL, 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+SET @demo_admin_id = SCOPE_IDENTITY();
+
+-- Asignar el usuario demo a la organización demo
+INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES (@demo_admin_id, @demo_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
+
+-- Asignar el rol Admin al usuario demo
+INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+VALUES (@demo_admin_id, @admin_role_id, @demo_org_id, GETDATE(), 1, GETDATE(), GETDATE(), @superadmin_id, @superadmin_id);
 
 -- ============================================================================
 -- VARIABLES DEL SISTEMA DE EJEMPLO
@@ -1245,12 +1003,11 @@ PRINT '  ✓ Roles con tipos extensibles (permissions, workflow, custom, system)
 PRINT '  ✓ Permisos y roles con flags system_hidden';
 PRINT '  ✓ Triggers automáticos para updated_at';
 PRINT '  ✓ Índices optimizados para consultas multi-tenant';
-PRINT '  ✓ Stored procedures para consultas de permisos';
+PRINT '  ✓ Stored procedure para generación atómica de números';
 PRINT '  ✓ Sistema de variables configurables con tipos múltiples';
 PRINT '  ✓ Numeración automática atómica (sin duplicados)';
 PRINT '  ✓ Validaciones configurables por variable';
 PRINT '  ✓ Auditoría completa de cambios y generaciones';
-PRINT '  ✓ Sin tablas relacionadas con CV';
 PRINT '';
 PRINT 'Datos iniciales creados:';
 PRINT '  ✓ Super Admin: superadmin@system.local / Soporte.2019';
@@ -1258,8 +1015,8 @@ PRINT '  ✓ Usuario Demo: admin@demo.com / 123456';
 PRINT '  ✓ Organización: SYSTEM (para permisos del sistema)';
 PRINT '  ✓ Organización: Empresa Demo (organización de ejemplo)';
 PRINT '  ✓ 11 permisos del sistema (ocultos)';
-PRINT '  ✓ 10 permisos básicos (usuarios, roles, dashboard)';
-PRINT '  ✓ 5 permisos para variables del sistema';
+PRINT '  ✓ 14 permisos básicos (usuarios, roles, dashboard, variables)';
+PRINT '  ✓ 5 permisos para variables del sistema (en SYSTEM)';
 PRINT '  ✓ 1 rol del sistema: Super Admin (oculto)';
 PRINT '  ✓ 2 roles básicos: Admin, Usuario';
 PRINT '  ✓ 4 variables de ejemplo (numeración, texto, número, booleano)';
@@ -1269,5 +1026,6 @@ PRINT '  - Cambiar contraseñas en producción';
 PRINT '  - El Super Admin puede acceder a cualquier organización';
 PRINT '  - Los permisos y roles del sistema están ocultos para usuarios normales';
 PRINT '  - La organización SYSTEM es solo para permisos del sistema';
+PRINT '  - Las variables del sistema permiten numeración automática y configuración';
 PRINT '';
 PRINT 'El proyecto está listo para usar!';

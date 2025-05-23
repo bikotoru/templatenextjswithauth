@@ -25,6 +25,7 @@ import {
   LogOut,
   Menu,
   ChevronDown,
+  Database,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -82,6 +83,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           url: '/admin/organizations',
           icon: Building2,
           permission: 'organizations:view_all',
+        },
+        {
+          title: 'Variables del Sistema',
+          url: '/admin/system-variables',
+          icon: Database,
+          permission: 'system_variables:view',
         },
       ],
     },
