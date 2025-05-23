@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!user.currentOrganization) {
+      console.error('No currentOrganization in user object:', {
+        userId: user.id,
+        userKeys: Object.keys(user),
+        currentOrganization: user.currentOrganization
+      });
       return NextResponse.json(
         { success: false, error: 'No hay organización seleccionada' },
         { status: 400 }
@@ -86,6 +91,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user.currentOrganization) {
+      console.error('No currentOrganization in user object:', {
+        userId: user.id,
+        userKeys: Object.keys(user),
+        currentOrganization: user.currentOrganization
+      });
       return NextResponse.json(
         { success: false, error: 'No hay organización seleccionada' },
         { status: 400 }

@@ -559,13 +559,30 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
         this.getUserRoles(user.id, sessionData.organization_id)
       ]);
 
+      // Obtener información de la organización actual
+      const currentOrganization = await executeQuerySingle<{
+        id: string;
+        name: string;
+        logo?: string;
+        rut?: string;
+      }>(
+        'SELECT id, name, logo, rut FROM organizations WHERE id = @organizationId AND active = 1',
+        { organizationId: sessionData.organization_id }
+      );
+
       return {
         id: user.id,
         email: user.email,
         name: user.name,
         avatar: user.avatar,
         permissions,
-        roles
+        roles,
+        currentOrganization: currentOrganization ? {
+          id: currentOrganization.id,
+          name: currentOrganization.name,
+          logo: currentOrganization.logo,
+          rut: currentOrganization.rut
+        } : undefined
       };
 
     } catch (error) {
