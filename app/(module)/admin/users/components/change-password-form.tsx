@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { UserFrontendService } from '../services/frontend.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,15 +38,7 @@ export default function ChangePasswordForm({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  useEffect(() => {
-    if (open && userId) {
-      checkPasswordPermission();
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-  }, [open, userId]);
-
-  const checkPasswordPermission = async () => {
+  const checkPasswordPermission = useCallback(async () => {
     setChecking(true);
     try {
       const result = await UserFrontendService.canChangePassword(userId);
@@ -58,7 +50,15 @@ export default function ChangePasswordForm({
     } finally {
       setChecking(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (open && userId) {
+      checkPasswordPermission();
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  }, [open, userId, checkPasswordPermission]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

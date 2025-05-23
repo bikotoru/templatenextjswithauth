@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RoleType, RoleSearchParams } from '../types';
 import { RoleFrontendService } from '../services/frontend.service';
 import { useAuth } from '@/contexts/auth-context';
@@ -57,7 +57,7 @@ export default function RoleList({
 
   const pageSize = 10;
 
-  const fetchRoles = async () => {
+  const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
       const params: RoleSearchParams = {
@@ -77,11 +77,11 @@ export default function RoleList({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, pageSize]);
 
   useEffect(() => {
     fetchRoles();
-  }, [currentPage, searchTerm]);
+  }, [fetchRoles]);
 
   const handleDelete = async (role: RoleType) => {
     if (!confirm(`¿Estás seguro de que quieres eliminar el rol ${role.name}?`)) {

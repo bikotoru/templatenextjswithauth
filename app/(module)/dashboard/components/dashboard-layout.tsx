@@ -32,7 +32,7 @@ import { useRouter, usePathname } from 'next/navigation';
 interface MenuItem {
   title: string;
   url: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   permission?: string;
   subItems?: MenuItem[];
 }

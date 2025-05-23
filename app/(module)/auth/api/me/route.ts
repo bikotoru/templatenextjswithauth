@@ -15,10 +15,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar y decodificar el token JWT
-    let decoded: any;
+    let decoded: Record<string, unknown>;
     try {
       const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
-      decoded = jwt.verify(token, jwtSecret);
+      decoded = jwt.verify(token, jwtSecret) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userId = decoded.id;
+    const userId = Number(decoded.id);
 
     // Obtener información del usuario
     const userInfo = await executeQuerySingle<{
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     // Si es Super Admin y tiene una organización en la sesión, buscarla directamente
     if (isUserSuperAdmin && currentOrgId) {
-      const orgData = await executeQuerySingle<any>(
+      const orgData = await executeQuerySingle<Record<string, unknown>>(
         `SELECT id, name, logo, rut, active, expires_at 
          FROM organizations 
          WHERE id = @organizationId`,
@@ -110,8 +110,8 @@ export async function GET(request: NextRequest) {
 
     // Obtener permisos y roles para la organización actual
     const [permissions, roles] = await Promise.all([
-      getUserPermissions(userId, currentOrganization!.id),
-      getUserRoles(userId, currentOrganization!.id)
+      getUserPermissions(userId, String(currentOrganization!.id)),
+      getUserRoles(userId, String(currentOrganization!.id))
     ]);
 
     // Debug temporal

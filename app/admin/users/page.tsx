@@ -9,7 +9,7 @@ import { Toaster } from '@/components/ui/sonner';
 export default function UsersPage() {
   const router = useRouter();
 
-  const handleUserSelect = (_user: UserType) => {
+  const handleUserSelect = () => {
     // Reserved for future use
   };
 

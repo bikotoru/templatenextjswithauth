@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar y decodificar el token JWT
-    let decoded: any;
+    let decoded: Record<string, unknown>;
     try {
       const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
-      decoded = jwt.verify(token, jwtSecret);
+      decoded = jwt.verify(token, jwtSecret) as Record<string, unknown>;
     } catch {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = decoded.id;
+    const userId = Number(decoded.id);
 
     // Verificar que el usuario tenga acceso a esa organización
     const userOrganizations = await getUserOrganizations(userId);
@@ -45,12 +45,12 @@ export async function POST(request: NextRequest) {
     // Si no tiene acceso directo, verificar si es Super Admin
     if (!targetOrg) {
       // Verificar si es Super Admin
-      const roles = await getUserRoles(userId, decoded.organizationId);
+      const roles = await getUserRoles(userId, String(decoded.organizationId));
       const isSuperAdmin = roles.includes('Super Admin');
       
       if (isSuperAdmin) {
         // El Super Admin puede acceder a cualquier organización
-        const orgQuery = await executeQuery<any>(
+        const orgQuery = await executeQuery<Record<string, unknown>>(
           `SELECT id, name, logo, rut, active, expires_at 
            FROM organizations 
            WHERE id = @organizationId`,
@@ -58,7 +58,12 @@ export async function POST(request: NextRequest) {
         );
         
         if (orgQuery.length > 0) {
-          targetOrg = orgQuery[0];
+          targetOrg = {
+            id: String(orgQuery[0].id),
+            name: String(orgQuery[0].name),
+            logo: orgQuery[0].logo ? String(orgQuery[0].logo) : undefined,
+            rut: orgQuery[0].rut ? String(orgQuery[0].rut) : undefined
+          };
         }
       }
       

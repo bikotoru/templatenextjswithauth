@@ -6,12 +6,13 @@ import { Building2, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { OrganizationSelectorModal } from './organization-selector-modal';
+import { Organization } from '@/utils/auth';
 
 export function OrganizationSwitcher() {
   const { user, currentOrganization, switchOrganization } = useAuth();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [allOrganizations, setAllOrganizations] = React.useState<any[]>([]);
+  const [allOrganizations, setAllOrganizations] = React.useState<Organization[]>([]);
   const [loadingOrgs, setLoadingOrgs] = React.useState(false);
 
   const isSuperAdmin = user?.roles?.includes('Super Admin') || false;

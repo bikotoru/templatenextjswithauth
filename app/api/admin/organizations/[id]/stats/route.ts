@@ -47,7 +47,7 @@ export async function GET(
       WHERE uo.organization_id = @organizationId AND uo.active = 1
     `;
 
-    const userStats = await executeQuerySingle<any>(userStatsQuery, { organizationId });
+    const userStats = await executeQuerySingle<Record<string, unknown>>(userStatsQuery, { organizationId });
 
     // 2. Estadísticas de roles
     const roleStatsQuery = `
@@ -63,7 +63,7 @@ export async function GET(
       ) as userRoleCounts
     `;
 
-    const roleStats = await executeQuerySingle<any>(roleStatsQuery, { organizationId });
+    const roleStats = await executeQuerySingle<Record<string, unknown>>(roleStatsQuery, { organizationId });
 
     // 3. Rol más asignado
     const mostAssignedRoleQuery = `
@@ -96,7 +96,7 @@ export async function GET(
       WHERE uo.organization_id = @organizationId AND uo.active = 1
     `;
 
-    const activityStats = await executeQuerySingle<any>(activityStatsQuery, { organizationId });
+    const activityStats = await executeQuerySingle<Record<string, unknown>>(activityStatsQuery, { organizationId });
 
     // 5. Usuario más activo
     const mostActiveUserQuery = `
@@ -129,35 +129,35 @@ export async function GET(
       WHERE id = @organizationId
     `;
 
-    const systemStats = await executeQuerySingle<any>(systemStatsQuery, { organizationId });
+    const systemStats = await executeQuerySingle<Record<string, unknown>>(systemStatsQuery, { organizationId });
 
     // Construir respuesta
     const stats = {
       userStats: {
-        totalUsers: userStats?.data?.totalUsers || 0,
-        activeUsers: userStats?.data?.activeUsers || 0,
-        inactiveUsers: userStats?.data?.inactiveUsers || 0,
-        usersJoinedThisMonth: userStats?.data?.usersJoinedThisMonth || 0,
-        usersJoinedThisWeek: userStats?.data?.usersJoinedThisWeek || 0,
+        totalUsers: (userStats as Record<string, unknown>)?.totalUsers || 0,
+        activeUsers: (userStats as Record<string, unknown>)?.activeUsers || 0,
+        inactiveUsers: (userStats as Record<string, unknown>)?.inactiveUsers || 0,
+        usersJoinedThisMonth: (userStats as Record<string, unknown>)?.usersJoinedThisMonth || 0,
+        usersJoinedThisWeek: (userStats as Record<string, unknown>)?.usersJoinedThisWeek || 0,
       },
       roleStats: {
-        totalRoles: roleStats?.data?.totalRoles || 0,
-        mostAssignedRole: mostAssignedRoleResult?.name || null,
-        averageRolesPerUser: roleStats?.data?.averageRolesPerUser || 0,
+        totalRoles: (roleStats as Record<string, unknown>)?.totalRoles || 0,
+        mostAssignedRole: (mostAssignedRoleResult as Record<string, unknown>)?.name || null,
+        averageRolesPerUser: (roleStats as Record<string, unknown>)?.averageRolesPerUser || 0,
       },
       activityStats: {
-        totalLogins: activityStats?.data?.totalLogins || 0,
-        loginsThisMonth: activityStats?.data?.loginsThisMonth || 0,
-        loginsThisWeek: activityStats?.data?.loginsThisWeek || 0,
-        lastActivityDate: activityStats?.data?.lastActivityDate || null,
-        mostActiveUser: mostActiveUserResult?.name || null,
+        totalLogins: (activityStats as Record<string, unknown>)?.totalLogins || 0,
+        loginsThisMonth: (activityStats as Record<string, unknown>)?.loginsThisMonth || 0,
+        loginsThisWeek: (activityStats as Record<string, unknown>)?.loginsThisWeek || 0,
+        lastActivityDate: (activityStats as Record<string, unknown>)?.lastActivityDate || null,
+        mostActiveUser: (mostActiveUserResult as Record<string, unknown>)?.name || null,
       },
       systemStats: {
-        organizationAge: systemStats?.data?.organizationAge || 0,
-        createdAt: systemStats?.data?.created_at || null,
-        isExpired: systemStats?.data?.isExpired === 1,
-        expiresAt: systemStats?.data?.expires_at || null,
-        daysUntilExpiration: systemStats?.data?.daysUntilExpiration || null,
+        organizationAge: (systemStats as Record<string, unknown>)?.organizationAge || 0,
+        createdAt: (systemStats as Record<string, unknown>)?.created_at || null,
+        isExpired: (systemStats as Record<string, unknown>)?.isExpired === 1,
+        expiresAt: (systemStats as Record<string, unknown>)?.expires_at || null,
+        daysUntilExpiration: (systemStats as Record<string, unknown>)?.daysUntilExpiration || null,
       }
     };
 

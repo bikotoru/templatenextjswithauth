@@ -46,7 +46,7 @@ export async function GET(
       ORDER BY uo.joined_at DESC
     `;
 
-    const users = await executeQuery<any>(usersQuery, { organizationId });
+    const users = await executeQuery<Record<string, unknown>>(usersQuery, { organizationId });
 
     // Obtener roles para cada usuario por separado
     const usersWithRoles = await Promise.all(

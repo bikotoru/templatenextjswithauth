@@ -10,7 +10,7 @@ export default function RolesPage() {
   const router = useRouter();
   //const [selectedRole, setSelectedRole] = useState<RoleType | null>(null);
 
-  const handleRoleSelect = (_role: RoleType) => {
+  const handleRoleSelect = () => {
     // Reserved for future use
   };
 

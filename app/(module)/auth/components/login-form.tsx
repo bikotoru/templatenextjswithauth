@@ -17,12 +17,12 @@ interface LoginFormProps {
   onSuccess?: () => void;
 }
 
-interface DemoUser {
-  email: string;
-  password: string;
-  role: string;
-  org: string;
-}
+// interface DemoUser {
+//   email: string;
+//   password: string;
+//   role: string;
+//   org: string;
+// }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
@@ -82,10 +82,10 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
 
 
-  const fillDemoUser = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-  };
+  // const fillDemoUser = (email: string, password: string) => {
+  //   setEmail(email);
+  //   setPassword(password);
+  // };
 
   const handleOrganizationSelect = async (organizationId: string) => {
     setIsLoading(true);
