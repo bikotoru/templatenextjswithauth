@@ -187,29 +187,224 @@ export class OrganizationBackendService {
       }
 
       return await executeTransaction(async (transaction) => {
+        // Verificar si ya existe una organización con el mismo nombre
+        const checkOrgNameQuery = `
+          SELECT id FROM organizations WHERE name = @name AND active = 1
+        `;
+        
+        const checkOrgNameRequest = transaction.request();
+        checkOrgNameRequest.input('name', data.name);
+        
+        const existingOrg = await checkOrgNameRequest.query(checkOrgNameQuery);
+        
+        if (existingOrg.recordset.length > 0) {
+          return {
+            success: false,
+            error: `Ya existe una organización con el nombre "${data.name}". Por favor, use un nombre diferente.`
+          };
+        }
+
         // Insertar organización
-        const insertQuery = `
+        const insertOrgQuery = `
           INSERT INTO organizations (name, logo, rut, active, expires_at, created_at, updated_at, created_by_id, updated_by_id)
           OUTPUT INSERTED.id, INSERTED.name, INSERTED.logo, INSERTED.rut, INSERTED.active, INSERTED.expires_at,
                  INSERTED.created_at, INSERTED.updated_at, INSERTED.created_by_id, INSERTED.updated_by_id
           VALUES (@name, @logo, @rut, @active, @expires_at, GETDATE(), GETDATE(), @userId, @userId)
         `;
 
-        const request = transaction.request();
-        request.input('name', data.name);
-        request.input('logo', data.logo || null);
-        request.input('rut', data.rut || null);
-        request.input('active', data.active !== false);
-        request.input('expires_at', data.expires_at || null);
-        request.input('userId', user.id);
+        const orgRequest = transaction.request();
+        orgRequest.input('name', data.name);
+        orgRequest.input('logo', data.logo || null);
+        orgRequest.input('rut', data.rut || null);
+        orgRequest.input('active', data.active !== false);
+        orgRequest.input('expires_at', data.expires_at || null);
+        orgRequest.input('userId', user.id);
 
-        const result = await request.query(insertQuery);
-        const newOrganization = result.recordset[0];
+        const orgResult = await orgRequest.query(insertOrgQuery);
+        const newOrganization = orgResult.recordset[0];
+
+        let adminUserId: number;
+
+        // Crear o obtener el usuario administrador
+        if (data.adminUser.type === 'new' && data.adminUser.newUser) {
+          // Verificar si el email ya existe
+          const checkEmailQuery = `
+            SELECT id FROM users WHERE email = @email
+          `;
+          
+          const checkEmailRequest = transaction.request();
+          checkEmailRequest.input('email', data.adminUser.newUser.email);
+          
+          const existingUser = await checkEmailRequest.query(checkEmailQuery);
+          
+          if (existingUser.recordset.length > 0) {
+            return {
+              success: false,
+              error: `El email "${data.adminUser.newUser.email}" ya está registrado en el sistema. Por favor, use un email diferente o seleccione el usuario existente.`
+            };
+          }
+
+          // Crear nuevo usuario
+          const bcrypt = require('bcryptjs');
+          const hashedPassword = await bcrypt.hash(data.adminUser.newUser.password, 12);
+
+          const insertUserQuery = `
+            INSERT INTO users (email, password_hash, name, active, created_at, updated_at, created_by_id, updated_by_id)
+            OUTPUT INSERTED.id
+            VALUES (@email, @password_hash, @name, 1, GETDATE(), GETDATE(), @userId, @userId)
+          `;
+
+          const userRequest = transaction.request();
+          userRequest.input('email', data.adminUser.newUser.email);
+          userRequest.input('password_hash', hashedPassword);
+          userRequest.input('name', data.adminUser.newUser.name);
+          userRequest.input('userId', user.id);
+
+          const userResult = await userRequest.query(insertUserQuery);
+          adminUserId = userResult.recordset[0].id;
+        } else if (data.adminUser.type === 'existing' && data.adminUser.existingUserId) {
+          // Verificar que el usuario existente sea válido y esté activo
+          const checkUserQuery = `
+            SELECT id, email, name, active FROM users WHERE id = @userId
+          `;
+          
+          const checkUserRequest = transaction.request();
+          checkUserRequest.input('userId', data.adminUser.existingUserId);
+          
+          const existingUserResult = await checkUserRequest.query(checkUserQuery);
+          
+          if (existingUserResult.recordset.length === 0) {
+            return {
+              success: false,
+              error: 'El usuario seleccionado no existe en el sistema.'
+            };
+          }
+          
+          const existingUserData = existingUserResult.recordset[0];
+          if (!existingUserData.active) {
+            return {
+              success: false,
+              error: `El usuario "${existingUserData.name}" (${existingUserData.email}) está desactivado y no puede ser asignado como administrador.`
+            };
+          }
+          
+          adminUserId = data.adminUser.existingUserId;
+        } else {
+          throw new Error('Configuración de administrador inválida');
+        }
+
+        // Crear permisos básicos para la organización
+        const basicPermissions = [
+          { name: 'admin:access', description: 'Acceso al panel de administración', category: 'admin' },
+          { name: 'dashboard:view', description: 'Ver dashboard', category: 'dashboard' },
+          { name: 'users:view', description: 'Ver usuarios', category: 'users' },
+          { name: 'users:create', description: 'Crear usuarios', category: 'users' },
+          { name: 'users:edit', description: 'Editar usuarios', category: 'users' },
+          { name: 'users:delete', description: 'Eliminar usuarios', category: 'users' },
+          { name: 'roles:view', description: 'Ver roles', category: 'roles' },
+          { name: 'roles:create', description: 'Crear roles', category: 'roles' },
+          { name: 'roles:edit', description: 'Editar roles', category: 'roles' },
+          { name: 'roles:delete', description: 'Eliminar roles', category: 'roles' },
+          { name: 'permissions:view', description: 'Ver permisos', category: 'permissions' },
+        ];
+
+        const permissionIds: number[] = [];
+        for (const permission of basicPermissions) {
+          const insertPermQuery = `
+            INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
+            OUTPUT INSERTED.id
+            VALUES (@name, @description, @category, @organizationId, 0, 1, GETDATE(), GETDATE(), @userId, @userId)
+          `;
+
+          const permRequest = transaction.request();
+          permRequest.input('name', permission.name);
+          permRequest.input('description', permission.description);
+          permRequest.input('category', permission.category);
+          permRequest.input('organizationId', newOrganization.id);
+          permRequest.input('userId', user.id);
+
+          const permResult = await permRequest.query(insertPermQuery);
+          permissionIds.push(permResult.recordset[0].id);
+        }
+
+        // Crear rol Admin para la organización
+        const insertRoleQuery = `
+          INSERT INTO roles (name, description, type, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
+          OUTPUT INSERTED.id
+          VALUES (@name, @description, @type, @organizationId, 0, 1, GETDATE(), GETDATE(), @userId, @userId)
+        `;
+
+        const roleRequest = transaction.request();
+        roleRequest.input('name', 'Admin');
+        roleRequest.input('description', 'Administrador de la organización');
+        roleRequest.input('type', 'permissions');
+        roleRequest.input('organizationId', newOrganization.id);
+        roleRequest.input('userId', user.id);
+
+        const roleResult = await roleRequest.query(insertRoleQuery);
+        const adminRoleId = roleResult.recordset[0].id;
+
+        // Asignar todos los permisos al rol Admin
+        for (const permissionId of permissionIds) {
+          const insertRolePermQuery = `
+            INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+            VALUES (@roleId, @permissionId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+          `;
+
+          const rolePermRequest = transaction.request();
+          rolePermRequest.input('roleId', adminRoleId);
+          rolePermRequest.input('permissionId', permissionId);
+          rolePermRequest.input('organizationId', newOrganization.id);
+          rolePermRequest.input('userId', user.id);
+
+          await rolePermRequest.query(insertRolePermQuery);
+        }
+
+        // Verificar si el usuario ya pertenece a la organización (aunque es nueva, por si acaso)
+        const checkUserOrgQuery = `
+          SELECT id FROM user_organizations 
+          WHERE user_id = @adminUserId AND organization_id = @organizationId
+        `;
+        
+        const checkUserOrgRequest = transaction.request();
+        checkUserOrgRequest.input('adminUserId', adminUserId);
+        checkUserOrgRequest.input('organizationId', newOrganization.id);
+        
+        const existingUserOrg = await checkUserOrgRequest.query(checkUserOrgQuery);
+        
+        if (existingUserOrg.recordset.length === 0) {
+          // Asignar el usuario administrador a la organización
+          const insertUserOrgQuery = `
+            INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
+            VALUES (@adminUserId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+          `;
+
+          const userOrgRequest = transaction.request();
+          userOrgRequest.input('adminUserId', adminUserId);
+          userOrgRequest.input('organizationId', newOrganization.id);
+          userOrgRequest.input('userId', user.id);
+
+          await userOrgRequest.query(insertUserOrgQuery);
+        }
+
+        // Asignar el rol Admin al usuario administrador
+        const insertUserRoleQuery = `
+          INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
+          VALUES (@adminUserId, @roleId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+        `;
+
+        const userRoleRequest = transaction.request();
+        userRoleRequest.input('adminUserId', adminUserId);
+        userRoleRequest.input('roleId', adminRoleId);
+        userRoleRequest.input('organizationId', newOrganization.id);
+        userRoleRequest.input('userId', user.id);
+
+        await userRoleRequest.query(insertUserRoleQuery);
 
         // Agregar userCount para consistencia
         return {
           ...newOrganization,
-          userCount: 0
+          userCount: 1
         };
       });
     } catch (error) {

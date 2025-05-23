@@ -18,6 +18,15 @@ export interface OrganizationCreateRequest {
   rut?: string;
   active?: boolean;
   expires_at?: string | null;
+  adminUser: {
+    type: 'existing' | 'new';
+    existingUserId?: number;
+    newUser?: {
+      email: string;
+      name: string;
+      password: string;
+    };
+  };
 }
 
 export interface OrganizationUpdateRequest {

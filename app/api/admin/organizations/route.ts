@@ -71,10 +71,16 @@ export async function POST(request: NextRequest) {
     }, user);
 
     if (!result.success) {
+      // Determinar el status code apropiado basado en el tipo de error
+      const isValidationError = result.error?.includes('ya está registrado') || 
+                               result.error?.includes('Ya existe una organización') ||
+                               result.error?.includes('no existe en el sistema') ||
+                               result.error?.includes('está desactivado');
+      
       return NextResponse.json({
         success: false,
         error: result.error || 'Error al crear organización',
-      }, { status: 500 });
+      }, { status: isValidationError ? 400 : 500 });
     }
 
     return NextResponse.json({

@@ -58,13 +58,10 @@ export class OrganizationFrontendService {
       body: JSON.stringify(organizationData),
     });
     
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
     const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Error al crear organización');
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
     }
     
     return data.data;

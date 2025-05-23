@@ -14,8 +14,12 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Building2 } from 'lucide-react';
+import { Loader2, Building2, User, Users, Check, ChevronsUpDown } from 'lucide-react';
 
 interface OrganizationFormProps {
   organization?: OrganizationType | null;
@@ -35,6 +39,9 @@ export default function OrganizationForm({
   showAsPage = false 
 }: OrganizationFormProps) {
   const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<Array<{id: number, name: string, email: string}>>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSelectorOpen, setUserSelectorOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -43,9 +50,37 @@ export default function OrganizationForm({
     active: true,
     expires_at: '',
     neverExpires: true,
+    adminType: 'new' as 'existing' | 'new',
+    existingUserId: '',
+    newUserEmail: '',
+    newUserName: '',
+    newUserPassword: '',
   });
 
   const isEditing = !!organization;
+
+  useEffect(() => {
+    // Cargar usuarios existentes solo para creación
+    if (open && !isEditing) {
+      loadUsers();
+    }
+  }, [open, isEditing]);
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      // Llamada a API para obtener usuarios
+      const response = await fetch('/api/admin/users/simple');
+      if (response.ok) {
+        const result = await response.json();
+        setUsers(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -67,6 +102,11 @@ export default function OrganizationForm({
           active: true,
           expires_at: '',
           neverExpires: true,
+          adminType: 'new',
+          existingUserId: '',
+          newUserEmail: '',
+          newUserName: '',
+          newUserPassword: '',
         });
       }
     }
@@ -83,6 +123,33 @@ export default function OrganizationForm({
     if (formData.name.toUpperCase() === 'SYSTEM') {
       toast.error('No se puede usar el nombre "SYSTEM"');
       return;
+    }
+
+    // Validaciones para el administrador (solo al crear)
+    if (!isEditing) {
+      if (formData.adminType === 'existing') {
+        if (!formData.existingUserId) {
+          toast.error('Debe seleccionar un usuario existente');
+          return;
+        }
+      } else {
+        if (!formData.newUserEmail.trim()) {
+          toast.error('El email del administrador es requerido');
+          return;
+        }
+        if (!formData.newUserName.trim()) {
+          toast.error('El nombre del administrador es requerido');
+          return;
+        }
+        if (!formData.newUserPassword.trim()) {
+          toast.error('La contraseña del administrador es requerida');
+          return;
+        }
+        if (formData.newUserPassword.length < 6) {
+          toast.error('La contraseña debe tener al menos 6 caracteres');
+          return;
+        }
+      }
     }
 
     setLoading(true);
@@ -105,6 +172,15 @@ export default function OrganizationForm({
           rut: formData.rut.trim() || undefined,
           active: formData.active,
           expires_at: formData.neverExpires ? null : formData.expires_at || null,
+          adminUser: {
+            type: formData.adminType,
+            existingUserId: formData.adminType === 'existing' ? parseInt(formData.existingUserId) : undefined,
+            newUser: formData.adminType === 'new' ? {
+              email: formData.newUserEmail.trim(),
+              name: formData.newUserName.trim(),
+              password: formData.newUserPassword.trim(),
+            } : undefined,
+          },
         };
         
         await OrganizationFrontendService.create(createData);
@@ -195,6 +271,154 @@ export default function OrganizationForm({
         />
         <Label htmlFor="active">Organización activa</Label>
       </div>
+
+      {/* Sección del Administrador - Solo para creación */}
+      {!isEditing && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Administrador de la Organización
+            </CardTitle>
+            <CardDescription>
+              Configura el usuario que será el administrador de esta organización.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo de Usuario</Label>
+              <Select 
+                value={formData.adminType} 
+                onValueChange={(value: 'existing' | 'new') => 
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    adminType: value,
+                    existingUserId: '',
+                    newUserEmail: '',
+                    newUserName: '',
+                    newUserPassword: ''
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el tipo de usuario" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="existing">Usuario Existente</SelectItem>
+                  <SelectItem value="new">Crear Nuevo Usuario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.adminType === 'existing' && (
+              <div className="space-y-2">
+                <Label htmlFor="existingUser">Usuario Existente *</Label>
+                {loadingUsers ? (
+                  <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando usuarios...
+                  </div>
+                ) : (
+                  <Popover open={userSelectorOpen} onOpenChange={setUserSelectorOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={userSelectorOpen}
+                        className="w-full justify-between"
+                      >
+                        {formData.existingUserId
+                          ? (() => {
+                              const selectedUser = users.find(user => user.id.toString() === formData.existingUserId);
+                              return selectedUser ? `${selectedUser.name} (${selectedUser.email})` : "Selecciona un usuario";
+                            })()
+                          : "Selecciona un usuario"
+                        }
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar usuario..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontraron usuarios.</CommandEmpty>
+                          <CommandGroup>
+                            {users.map((user) => (
+                              <CommandItem
+                                key={user.id}
+                                value={`${user.name} ${user.email}`}
+                                onSelect={() => {
+                                  setFormData(prev => ({ 
+                                    ...prev, 
+                                    existingUserId: user.id.toString() 
+                                  }));
+                                  setUserSelectorOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${
+                                    formData.existingUserId === user.id.toString() 
+                                      ? "opacity-100" 
+                                      : "opacity-0"
+                                  }`}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{user.name}</span>
+                                  <span className="text-sm text-muted-foreground">{user.email}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            )}
+
+            {formData.adminType === 'new' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="newUserEmail">Email *</Label>
+                    <Input
+                      id="newUserEmail"
+                      type="email"
+                      placeholder="admin@empresa.com"
+                      value={formData.newUserEmail}
+                      onChange={(e) => setFormData(prev => ({ ...prev, newUserEmail: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newUserName">Nombre Completo *</Label>
+                    <Input
+                      id="newUserName"
+                      type="text"
+                      placeholder="Juan Pérez"
+                      value={formData.newUserName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, newUserName: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newUserPassword">Contraseña *</Label>
+                  <Input
+                    id="newUserPassword"
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    value={formData.newUserPassword}
+                    onChange={(e) => setFormData(prev => ({ ...prev, newUserPassword: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className={showAsPage ? "flex justify-end gap-3" : "flex justify-end gap-3 pt-4"}>
         <Button
