@@ -265,12 +265,12 @@ export function IncrementalWizard({ isOpen, onClose, onSuccess, groups = [] }: I
             {groups.length > 0 && (
               <div>
                 <Label htmlFor="group_id">Grupo (Opcional)</Label>
-                <Select value={data.group_id.toString()} onValueChange={(value) => updateData({ group_id: value ? Number(value) : '' })}>
+                <Select value={data.group_id ? data.group_id.toString() : "0"} onValueChange={(value) => updateData({ group_id: value === "0" ? '' : Number(value) })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin grupo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin grupo</SelectItem>
+                    <SelectItem value="0">Sin grupo</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id.toString()}>
                         {group.name}

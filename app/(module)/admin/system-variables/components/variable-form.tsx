@@ -349,14 +349,14 @@ export function VariableForm({ variable, groups = [], onSave, onCancel }: Variab
             <div className="space-y-2">
               <Label htmlFor="group_id">Grupo (Opcional)</Label>
               <Select 
-                value={formData.group_id.toString()} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, group_id: value ? Number(value) : '' }))}
+                value={formData.group_id ? formData.group_id.toString() : "0"} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, group_id: value === "0" ? '' : Number(value) }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sin grupo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin grupo</SelectItem>
+                  <SelectItem value="0">Sin grupo</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id.toString()}>
                       {group.name}
