@@ -322,6 +322,22 @@
   background-color: oklch(from var(--corporate-text) l c h / 0.1);
 }
 
+.corporate-theme .corporate-header .corporate-org-switcher * {
+  color: var(--corporate-background) !important;
+}
+
+.corporate-theme .corporate-header .corporate-org-switcher svg {
+  color: var(--corporate-background) !important;
+}
+
+.corporate-theme.dark .corporate-header .corporate-org-switcher * {
+  color: var(--corporate-text) !important;
+}
+
+.corporate-theme.dark .corporate-header .corporate-org-switcher svg {
+  color: var(--corporate-text) !important;
+}
+
 /* Estilos para ThemeToggle en header corporativo */
 .corporate-theme .corporate-header .corporate-theme-toggle {
   color: var(--corporate-background);
