@@ -41,6 +41,9 @@ interface SystemVariable {
   group_id?: number;
   group_name?: string;
   config?: any;
+  can_view?: boolean;
+  can_edit?: boolean;
+  current_value?: string;
 }
 
 interface VariableGroup {
@@ -85,21 +88,27 @@ export default function PersonalizacionPage() {
       if (!currentOrganization) return;
       
       try {
-        // Fetch system variables
-        const sysVarResponse = await fetch('/api/admin/system-variables');
-        if (sysVarResponse.ok) {
-          const sysVars = await sysVarResponse.json();
-          setSystemVariables(sysVars.filter((v: SystemVariable) => v.is_editable));
-          setAllSystemVariables(sysVars); // For variables designer
+        // Fetch system variables for admin (designer)
+        if (hasPermission('variables:manage')) {
+          const sysVarResponse = await fetch('/api/admin/system-variables');
+          if (sysVarResponse.ok) {
+            const sysVars = await sysVarResponse.json();
+            setAllSystemVariables(sysVars); // For variables designer
+          }
         }
 
-        // Fetch organization variable values
-        const orgVarResponse = await fetch(`/api/organizations/${currentOrganization.id}/variables`);
-        if (orgVarResponse.ok) {
-          const orgVars = await orgVarResponse.json();
+        // Fetch user-accessible variables (with permissions)
+        const userVarResponse = await fetch('/api/variables/user');
+        if (userVarResponse.ok) {
+          const userVars = await userVarResponse.json();
+          setSystemVariables(userVars.filter((v: SystemVariable) => v.can_view));
+          
+          // Map current values
           const varMap: Record<string, string> = {};
-          orgVars.forEach((orgVar: OrganizationVariable & { system_variable: SystemVariable }) => {
-            varMap[orgVar.system_variable.key] = orgVar.value;
+          userVars.forEach((variable: SystemVariable & { current_value: string }) => {
+            if (variable.current_value !== null && variable.current_value !== undefined) {
+              varMap[variable.key] = variable.current_value;
+            }
           });
           setOrgVariables(varMap);
         }
@@ -409,22 +418,31 @@ export default function PersonalizacionPage() {
     if (!currentOrganization) return;
     
     try {
-      const response = await fetch(`/api/organizations/${currentOrganization.id}/variables`, {
-        method: 'POST',
+      // Find the variable to get its ID
+      const variable = systemVariables.find(v => v.key === variableKey);
+      if (!variable) {
+        toast.error('Variable no encontrada');
+        return;
+      }
+
+      const response = await fetch('/api/variables/user', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          variable_key: variableKey,
-          value: value.toString()
+          variable_id: variable.id,
+          value: value
         }),
       });
 
       if (response.ok) {
+        const result = await response.json();
         setOrgVariables(prev => ({ ...prev, [variableKey]: value.toString() }));
-        toast.success('Variable actualizada correctamente');
+        toast.success(`Variable "${result.variable_name}" actualizada correctamente`);
       } else {
-        toast.error('Error al guardar la variable');
+        const error = await response.json();
+        toast.error(error.message || 'Error al guardar la variable');
       }
     } catch (error) {
       console.error('Error saving variable:', error);
@@ -469,14 +487,16 @@ export default function PersonalizacionPage() {
   }, {} as Record<string, SystemVariable[]>);
 
   const renderVariableInput = (variable: SystemVariable) => {
-    const value = orgVariables[variable.key] || variable.default_value;
+    const value = orgVariables[variable.key] || variable.current_value || variable.default_value;
+    const canEdit = variable.can_edit !== false && variable.is_editable;
     
     switch (variable.data_type) {
       case 'boolean':
         return (
           <Switch
             checked={value === 'true'}
-            onCheckedChange={(checked) => handleSaveVariable(variable.key, checked)}
+            onCheckedChange={canEdit ? (checked) => handleSaveVariable(variable.key, checked) : undefined}
+            disabled={!canEdit}
           />
         );
       case 'number':
@@ -484,17 +504,19 @@ export default function PersonalizacionPage() {
           <Input
             type="number"
             value={value}
-            onChange={(e) => handleSaveVariable(variable.key, e.target.value)}
+            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
             className="w-32 text-sm"
+            readOnly={!canEdit}
           />
         );
       case 'json':
         return (
           <Input
             value={value}
-            onChange={(e) => handleSaveVariable(variable.key, e.target.value)}
+            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
             placeholder="JSON"
             className="w-48 text-sm font-mono"
+            readOnly={!canEdit}
           />
         );
       case 'autoincremental':
@@ -509,7 +531,7 @@ export default function PersonalizacionPage() {
               <Label className="text-xs text-gray-600">Prefijo:</Label>
               <Input
                 value={suffix}
-                onChange={(e) => {
+                onChange={canEdit ? (e) => {
                   // Update only the suffix in the config
                   const newConfig = { ...variable.config, suffix: e.target.value };
                   handleSaveVariable(variable.key, JSON.stringify(newConfig));
@@ -521,9 +543,10 @@ export default function PersonalizacionPage() {
                       : v
                   );
                   setSystemVariables(updatedVariables);
-                }}
+                } : undefined}
                 placeholder="INV-"
                 className="w-24 text-sm"
+                readOnly={!canEdit}
               />
             </div>
             
@@ -551,7 +574,10 @@ export default function PersonalizacionPage() {
             {/* Info */}
             <div className="p-2 bg-gray-50 border border-gray-200 rounded">
               <p className="text-xs text-gray-600">
-                💡 Solo puedes modificar el prefijo. El número se incrementa automáticamente.
+                {canEdit 
+                  ? "💡 Solo puedes modificar el prefijo. El número se incrementa automáticamente."
+                  : "🔒 No tienes permisos para modificar esta variable."
+                }
               </p>
             </div>
           </div>
@@ -560,8 +586,9 @@ export default function PersonalizacionPage() {
         return (
           <Input
             value={value}
-            onChange={(e) => handleSaveVariable(variable.key, e.target.value)}
+            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
             className="w-48 text-sm"
+            readOnly={!canEdit}
           />
         );
     }
@@ -654,13 +681,27 @@ export default function PersonalizacionPage() {
                                 Requerida
                               </Badge>
                             )}
+                            {variable.can_edit === false && (
+                              <Badge variant="secondary" className="text-xs">
+                                Solo lectura
+                              </Badge>
+                            )}
+                            {variable.data_type === 'autoincremental' && (
+                              <Badge variant="default" className="text-xs">
+                                Autoincremental
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
                             {variable.description}
                           </p>
                         </div>
                         <div className="ml-4">
-                          {renderVariableInput(variable)}
+                          {variable.can_view ? renderVariableInput(variable) : (
+                            <div className="text-sm text-gray-500 italic">
+                              Sin permisos de visualización
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
