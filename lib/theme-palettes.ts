@@ -489,6 +489,285 @@ export const THEME_PALETTES: Record<string, ThemePalette> = {
       warning: "#fbbf24",      // Amarillo más claro
       error: "#f87171",        // Rojo más claro
     }
+  },
+
+  // Magenta Dinámico
+  dynamic_magenta: {
+    name: "Magenta Dinámico",
+    light: {
+      primary: "#c026d3",      // Magenta principal
+      secondary: "#6b7280",    // Gris neutro
+      accent: "#e879f9",       // Magenta claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#fdf4ff",      // Superficie magenta muy claro
+      text: "#1f2937",         // Texto oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#f3e8ff",       // Bordes magenta claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#e879f9",      // Magenta más claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#f0abfc",       // Magenta cyan
+      background: "#1a0a1f",   // Fondo muy oscuro magenta
+      surface: "#2d1b3d",      // Superficie oscura magenta
+      text: "#fdf4ff",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#581c87",       // Bordes oscuros magenta
+      success: "#10b981",      // Verde más claro
+      warning: "#f59e0b",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Carbón Ejecutivo
+  executive_charcoal: {
+    name: "Carbón Ejecutivo",
+    light: {
+      primary: "#1f2937",      // Carbón principal
+      secondary: "#6b7280",    // Gris medio
+      accent: "#374151",       // Carbón claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#f9fafb",      // Superficie gris muy claro
+      text: "#111827",         // Texto muy oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#d1d5db",       // Bordes gris claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#d1d5db",      // Gris claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#e5e7eb",       // Gris muy claro
+      background: "#111827",   // Fondo carbón
+      surface: "#1f2937",      // Superficie carbón claro
+      text: "#f9fafb",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#374151",       // Bordes carbón
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Bronce Elegante
+  elegant_bronze: {
+    name: "Bronce Elegante",
+    light: {
+      primary: "#92400e",      // Bronce principal
+      secondary: "#6b7280",    // Gris neutro
+      accent: "#d97706",       // Bronce claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#fef7ed",      // Superficie bronce muy claro
+      text: "#1c1917",         // Texto oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#fed7aa",       // Bordes bronce claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Bronce advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#f59e0b",      // Bronce más claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#fbbf24",       // Bronce cyan
+      background: "#1c1408",   // Fondo muy oscuro bronce
+      surface: "#2c1f0a",      // Superficie oscura bronce
+      text: "#fef7ed",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#451a03",       // Bordes oscuros bronce
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Lavanda Suave
+  soft_lavender: {
+    name: "Lavanda Suave",
+    light: {
+      primary: "#7c3aed",      // Lavanda principal
+      secondary: "#64748b",    // Gris azulado
+      accent: "#a855f7",       // Lavanda claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#faf5ff",      // Superficie lavanda muy claro
+      text: "#1e1b4b",         // Texto púrpura oscuro
+      textSecondary: "#64748b", // Texto secundario
+      border: "#e9d5ff",       // Bordes lavanda claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#c4b5fd",      // Lavanda más claro
+      secondary: "#94a3b8",    // Gris más claro
+      accent: "#ddd6fe",       // Lavanda cyan
+      background: "#1e1b4b",   // Fondo púrpura oscuro
+      surface: "#312e81",      // Superficie púrpura
+      text: "#faf5ff",         // Texto claro
+      textSecondary: "#94a3b8", // Texto secundario
+      border: "#4c1d95",       // Bordes púrpura oscuros
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Turquesa Tropical
+  tropical_turquoise: {
+    name: "Turquesa Tropical",
+    light: {
+      primary: "#0891b2",      // Turquesa principal
+      secondary: "#64748b",    // Gris azulado
+      accent: "#06b6d4",       // Turquesa claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#f0fdff",      // Superficie turquesa muy claro
+      text: "#0c4a6e",         // Texto azul oscuro
+      textSecondary: "#64748b", // Texto secundario
+      border: "#a5f3fc",       // Bordes turquesa claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#22d3ee",      // Turquesa más claro
+      secondary: "#94a3b8",    // Gris más claro
+      accent: "#67e8f9",       // Turquesa cyan
+      background: "#0c4a6e",   // Fondo azul profundo
+      surface: "#164e63",      // Superficie azul profundo
+      text: "#f0fdff",         // Texto claro
+      textSecondary: "#94a3b8", // Texto secundario
+      border: "#0e7490",       // Bordes azul profundo
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Coral Vibrante
+  vibrant_coral: {
+    name: "Coral Vibrante",
+    light: {
+      primary: "#f97316",      // Coral principal
+      secondary: "#6b7280",    // Gris neutro
+      accent: "#fb923c",       // Coral claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#fff7ed",      // Superficie coral muy claro
+      text: "#1c1917",         // Texto oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#fed7aa",       // Bordes coral claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#fb923c",      // Coral más claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#fdba74",       // Coral cyan
+      background: "#1c0f05",   // Fondo muy oscuro coral
+      surface: "#2c1810",      // Superficie oscura coral
+      text: "#fff7ed",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#7c2d12",       // Bordes oscuros coral
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Verde Bosque
+  forest_green: {
+    name: "Verde Bosque",
+    light: {
+      primary: "#15803d",      // Verde bosque principal
+      secondary: "#6b7280",    // Gris neutro
+      accent: "#22c55e",       // Verde claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#f0fdf4",      // Superficie verde muy claro
+      text: "#14532d",         // Texto verde oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#bbf7d0",       // Bordes verde claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#22c55e",      // Verde más claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#4ade80",       // Verde cyan
+      background: "#14532d",   // Fondo verde muy oscuro
+      surface: "#166534",      // Superficie verde oscura
+      text: "#f0fdf4",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#15803d",       // Bordes verde oscuros
+      success: "#34d399",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Borgoña Clásico
+  classic_burgundy: {
+    name: "Borgoña Clásico",
+    light: {
+      primary: "#991b1b",      // Borgoña principal
+      secondary: "#6b7280",    // Gris neutro
+      accent: "#dc2626",       // Borgoña claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#fef2f2",      // Superficie borgoña muy claro
+      text: "#1f2937",         // Texto oscuro
+      textSecondary: "#6b7280", // Texto secundario
+      border: "#fecaca",       // Bordes borgoña claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#f87171",      // Borgoña más claro
+      secondary: "#9ca3af",    // Gris más claro
+      accent: "#fca5a5",       // Borgoña cyan
+      background: "#1f2937",   // Fondo gris oscuro
+      surface: "#374151",      // Superficie gris oscura
+      text: "#fef2f2",         // Texto claro
+      textSecondary: "#9ca3af", // Texto secundario
+      border: "#7f1d1d",       // Bordes borgoña oscuros
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
+  },
+
+  // Añil Profundo
+  deep_indigo: {
+    name: "Añil Profundo",
+    light: {
+      primary: "#3730a3",      // Añil principal
+      secondary: "#64748b",    // Gris azulado
+      accent: "#6366f1",       // Añil claro
+      background: "#ffffff",   // Fondo blanco
+      surface: "#f8faff",      // Superficie añil muy claro
+      text: "#1e1b4b",         // Texto púrpura oscuro
+      textSecondary: "#64748b", // Texto secundario
+      border: "#e0e7ff",       // Bordes añil claro
+      success: "#059669",      // Verde éxito
+      warning: "#d97706",      // Ámbar advertencia
+      error: "#dc2626",        // Rojo error
+    },
+    dark: {
+      primary: "#818cf8",      // Añil más claro
+      secondary: "#94a3b8",    // Gris más claro
+      accent: "#a5b4fc",       // Añil cyan
+      background: "#1e1b4b",   // Fondo púrpura muy oscuro
+      surface: "#312e81",      // Superficie púrpura oscura
+      text: "#f8faff",         // Texto claro
+      textSecondary: "#94a3b8", // Texto secundario
+      border: "#4338ca",       // Bordes púrpura oscuros
+      success: "#22c55e",      // Verde más claro
+      warning: "#fbbf24",      // Amarillo más claro
+      error: "#f87171",        // Rojo más claro
+    }
   }
 };
 
