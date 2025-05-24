@@ -76,6 +76,7 @@ export default function PersonalizacionPage() {
   const [editingGroup, setEditingGroup] = useState<VariableGroup | null>(null);
   const [autoincrementalValues, setAutoincrementalValues] = useState<Record<string, { current_value: number; formatted_value: string }>>({});
   const [pendingChanges, setPendingChanges] = useState<Record<string, string | number | boolean>>({});
+  const [pendingConfigChanges, setPendingConfigChanges] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   
   // Estados para branding
@@ -462,8 +463,23 @@ export default function PersonalizacionPage() {
     }));
   };
 
+  const handleVariableConfigChange = (variableKey: string, config: any) => {
+    setPendingConfigChanges(prev => ({
+      ...prev,
+      [variableKey]: config
+    }));
+    
+    // Update the variable config in memory immediately for preview
+    const updatedVariables = systemVariables.map(v => 
+      v.key === variableKey 
+        ? { ...v, config: config }
+        : v
+    );
+    setSystemVariables(updatedVariables);
+  };
+
   const handleSaveAllChanges = async () => {
-    if (!currentOrganization || Object.keys(pendingChanges).length === 0) return;
+    if (!currentOrganization || (Object.keys(pendingChanges).length === 0 && Object.keys(pendingConfigChanges).length === 0)) return;
     
     setIsSaving(true);
     try {
@@ -504,8 +520,49 @@ export default function PersonalizacionPage() {
         }
       }
 
+      // Process configuration changes (for autoincremental variables)
+      for (const [variableKey, config] of Object.entries(pendingConfigChanges)) {
+        try {
+          // Find the variable to get its ID
+          const variable = systemVariables.find(v => v.key === variableKey);
+          if (!variable) {
+            errors.push(`Variable ${variableKey} no encontrada`);
+            continue;
+          }
+
+          const response = await fetch(`/api/admin/system-variables/${variable.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: variable.name,
+              description: variable.description,
+              default_value: variable.default_value,
+              data_type: variable.data_type,
+              category: variable.category,
+              is_required: variable.is_required,
+              is_editable: variable.is_editable,
+              config: config,
+              group_id: variable.group_id
+            }),
+          });
+
+          if (response.ok) {
+            successes.push(`Configuración de "${variable.name}" actualizada`);
+          } else {
+            const error = await response.json();
+            errors.push(`${variableKey}: ${error.message || 'Error al guardar configuración'}`);
+          }
+        } catch (error) {
+          console.error('Error saving variable config:', variableKey, error);
+          errors.push(`${variableKey}: Error de conexión`);
+        }
+      }
+
       // Clear pending changes
       setPendingChanges({});
+      setPendingConfigChanges({});
 
       // Show results
       if (successes.length > 0) {
@@ -524,6 +581,38 @@ export default function PersonalizacionPage() {
 
   const handleDiscardChanges = () => {
     setPendingChanges({});
+    setPendingConfigChanges({});
+    
+    // Restore original system variables to remove config previews
+    const fetchData = async () => {
+      try {
+        const isSuperAdmin = hasPermission('system:manage') || hasPermission('variables:manage');
+        
+        if (isSuperAdmin) {
+          const allVarResponse = await fetch('/api/admin/system-variables');
+          if (allVarResponse.ok) {
+            const allVars = await allVarResponse.json();
+            const varsWithGodMode = allVars.map((v: SystemVariable) => ({
+              ...v,
+              can_view: true,
+              can_edit: true
+            }));
+            setSystemVariables(varsWithGodMode.filter((v: SystemVariable) => v.is_editable));
+          }
+        } else {
+          const userVarResponse = await fetch('/api/variables/user');
+          if (userVarResponse.ok) {
+            const userVars = await userVarResponse.json();
+            const viewableVars = userVars.filter((v: SystemVariable) => v.can_view);
+            setSystemVariables(viewableVars);
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring variables:', error);
+      }
+    };
+    
+    fetchData();
     toast.info('Cambios descartados');
   };
 
@@ -569,7 +658,7 @@ export default function PersonalizacionPage() {
       ? pendingChanges[variable.key]?.toString()
       : (orgVariables[variable.key] || variable.current_value || variable.default_value);
     const canEdit = variable.can_edit !== false && variable.is_editable;
-    const hasChanges = pendingChanges[variable.key] !== undefined;
+    const hasChanges = pendingChanges[variable.key] !== undefined || pendingConfigChanges[variable.key] !== undefined;
     
     switch (variable.data_type) {
       case 'boolean':
@@ -615,15 +704,7 @@ export default function PersonalizacionPage() {
                 onChange={canEdit ? (e) => {
                   // Update only the suffix in the config
                   const newConfig = { ...variable.config, suffix: e.target.value };
-                  handleVariableChange(variable.key, JSON.stringify(newConfig));
-                  
-                  // Update the variable config in memory immediately for preview
-                  const updatedVariables = systemVariables.map(v => 
-                    v.key === variable.key 
-                      ? { ...v, config: newConfig }
-                      : v
-                  );
-                  setSystemVariables(updatedVariables);
+                  handleVariableConfigChange(variable.key, newConfig);
                 } : undefined}
                 placeholder="INV-"
                 className="w-24 text-sm"
@@ -750,14 +831,14 @@ export default function PersonalizacionPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {variables.map((variable) => (
-                      <div key={variable.key} className={`flex items-center justify-between p-4 border rounded-lg ${pendingChanges[variable.key] !== undefined ? 'border-orange-300 bg-orange-50' : ''}`}>
+                      <div key={variable.key} className={`flex items-center justify-between p-4 border rounded-lg ${pendingChanges[variable.key] !== undefined || pendingConfigChanges[variable.key] !== undefined ? 'border-orange-300 bg-orange-50' : ''}`}>
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
                             <Label className="font-medium">{variable.name}</Label>
                             <Badge variant="outline" className="text-xs">
                               {variable.key}
                             </Badge>
-                            {pendingChanges[variable.key] !== undefined && (
+                            {(pendingChanges[variable.key] !== undefined || pendingConfigChanges[variable.key] !== undefined) && (
                               <Badge variant="default" className="text-xs bg-orange-500">
                                 Cambio pendiente
                               </Badge>
@@ -797,13 +878,13 @@ export default function PersonalizacionPage() {
             )}
             
             {/* Botones de acción para cambios pendientes */}
-            {Object.keys(pendingChanges).length > 0 && (
+            {(Object.keys(pendingChanges).length > 0 || Object.keys(pendingConfigChanges).length > 0) && (
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Badge variant="default" className="bg-orange-500">
-                        {Object.keys(pendingChanges).length} cambio(s) pendiente(s)
+                        {Object.keys(pendingChanges).length + Object.keys(pendingConfigChanges).length} cambio(s) pendiente(s)
                       </Badge>
                       <span className="text-sm text-muted-foreground">
                         Los cambios no se han guardado
