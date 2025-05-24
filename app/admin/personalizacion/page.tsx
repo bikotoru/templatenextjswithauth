@@ -15,7 +15,11 @@ import {
   Settings, 
   FileImage, 
   Upload,
-  Save
+  Save,
+  Wrench,
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { toast } from 'sonner';
@@ -27,10 +31,22 @@ interface SystemVariable {
   name: string;
   description: string;
   default_value: string;
-  data_type: 'string' | 'number' | 'boolean' | 'json';
+  data_type: 'string' | 'number' | 'boolean' | 'json' | 'autoincremental';
   category: string;
   is_required: boolean;
   is_editable: boolean;
+  group_id?: number;
+  group_name?: string;
+  config?: any;
+}
+
+interface VariableGroup {
+  id: number;
+  name: string;
+  description: string;
+  organization_id?: string;
+  active: boolean;
+  variables?: SystemVariable[];
 }
 
 interface OrganizationVariable {
@@ -44,6 +60,14 @@ export default function PersonalizacionPage() {
   const [loading, setLoading] = useState(false);
   const [systemVariables, setSystemVariables] = useState<SystemVariable[]>([]);
   const [orgVariables, setOrgVariables] = useState<Record<string, string>>({});
+  
+  // Variables designer state
+  const [variableGroups, setVariableGroups] = useState<VariableGroup[]>([]);
+  const [allSystemVariables, setAllSystemVariables] = useState<SystemVariable[]>([]);
+  const [showVariableForm, setShowVariableForm] = useState(false);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingVariable, setEditingVariable] = useState<SystemVariable | null>(null);
+  const [editingGroup, setEditingGroup] = useState<VariableGroup | null>(null);
   
   // Estados para branding
   const [brandingConfig, setBrandingConfig] = useState({
@@ -62,6 +86,7 @@ export default function PersonalizacionPage() {
         if (sysVarResponse.ok) {
           const sysVars = await sysVarResponse.json();
           setSystemVariables(sysVars.filter((v: SystemVariable) => v.is_editable));
+          setAllSystemVariables(sysVars); // For variables designer
         }
 
         // Fetch organization variable values
@@ -74,13 +99,22 @@ export default function PersonalizacionPage() {
           });
           setOrgVariables(varMap);
         }
+        
+        // Fetch variable groups (for designer)
+        if (hasPermission('variables:manage')) {
+          const groupsResponse = await fetch('/api/admin/variable-groups');
+          if (groupsResponse.ok) {
+            const groups = await groupsResponse.json();
+            setVariableGroups(groups);
+          }
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       }
     };
 
     fetchData();
-  }, [currentOrganization]);
+  }, [currentOrganization, hasPermission]);
 
   const handleSaveVariable = async (variableKey: string, value: any) => {
     if (!currentOrganization) return;
@@ -200,7 +234,7 @@ export default function PersonalizacionPage() {
         </div>
 
         <Tabs defaultValue="tema" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="tema" className="flex items-center space-x-2">
               <Palette className="h-4 w-4" />
               <span>Tema</span>
@@ -209,6 +243,12 @@ export default function PersonalizacionPage() {
               <Settings className="h-4 w-4" />
               <span>Variables</span>
             </TabsTrigger>
+            {hasPermission('variables:manage') && (
+              <TabsTrigger value="designer" className="flex items-center space-x-2">
+                <Wrench className="h-4 w-4" />
+                <span>Diseñador</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="branding" className="flex items-center space-x-2">
               <FileImage className="h-4 w-4" />
               <span>Branding</span>
@@ -282,7 +322,239 @@ export default function PersonalizacionPage() {
             )}
           </TabsContent>
 
-          {/* Tab 3: Branding */}
+          {/* Tab 3: Variables Designer (Solo Super Admin) */}
+          {hasPermission('variables:manage') && (
+            <TabsContent value="designer" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">Diseñador de Variables</h2>
+                  <p className="text-muted-foreground">
+                    Crea y gestiona grupos de variables y variables del sistema.
+                  </p>
+                </div>
+                <div className="space-x-2">
+                  <Button onClick={() => setShowGroupForm(true)} variant="outline">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nuevo Grupo
+                  </Button>
+                  <Button onClick={() => setShowVariableForm(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva Variable
+                  </Button>
+                </div>
+              </div>
+
+              {/* Variable Groups */}
+              <div className="space-y-4">
+                {variableGroups.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Wrench className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <p className="text-lg font-medium text-gray-900 mb-2">
+                        No hay grupos de variables
+                      </p>
+                      <p className="text-gray-500 mb-6">
+                        Comienza creando tu primer grupo de variables para organizar la configuración.
+                      </p>
+                      <Button onClick={() => setShowGroupForm(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Crear Primer Grupo
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  variableGroups.map((group) => {
+                    const groupVariables = allSystemVariables.filter(v => v.group_id === group.id);
+                    
+                    return (
+                      <Card key={group.id}>
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="flex items-center space-x-2">
+                                <Settings className="h-5 w-5" />
+                                <span>{group.name}</span>
+                                <Badge variant="outline" className="ml-2">
+                                  {groupVariables.length} variables
+                                </Badge>
+                              </CardTitle>
+                              <CardDescription>{group.description}</CardDescription>
+                            </div>
+                            <div className="space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingGroup(group);
+                                  setShowGroupForm(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-600">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {groupVariables.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                              <p className="text-gray-500 mb-4">
+                                Este grupo no tiene variables aún
+                              </p>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingVariable({ group_id: group.id } as SystemVariable);
+                                  setShowVariableForm(true);
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Agregar Variable
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {groupVariables.map((variable) => (
+                                <div 
+                                  key={variable.id} 
+                                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                                >
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-medium">{variable.name}</span>
+                                      <Badge variant="secondary" className="text-xs">
+                                        {variable.key}
+                                      </Badge>
+                                      <Badge 
+                                        variant={variable.data_type === 'autoincremental' ? 'default' : 'outline'} 
+                                        className="text-xs"
+                                      >
+                                        {variable.data_type}
+                                      </Badge>
+                                      {variable.is_required && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Requerida
+                                        </Badge>
+                                      )}
+                                      {!variable.is_editable && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          Solo lectura
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      {variable.description}
+                                    </p>
+                                    {variable.data_type === 'autoincremental' && variable.config && (
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        Formato: {variable.config.suffix}{'0'.repeat(variable.config.digits || 8)}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="space-x-2">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingVariable(variable);
+                                        setShowVariableForm(true);
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="text-red-600">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="pt-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={() => {
+                                    setEditingVariable({ group_id: group.id } as SystemVariable);
+                                    setShowVariableForm(true);
+                                  }}
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Agregar Variable a {group.name}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
+
+                {/* Variables sin grupo */}
+                {allSystemVariables.filter(v => !v.group_id).length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Settings className="h-5 w-5" />
+                        <span>Variables sin grupo</span>
+                        <Badge variant="outline" className="ml-2">
+                          {allSystemVariables.filter(v => !v.group_id).length} variables
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Variables que no han sido asignadas a ningún grupo
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {allSystemVariables.filter(v => !v.group_id).map((variable) => (
+                          <div 
+                            key={variable.id} 
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium">{variable.name}</span>
+                                <Badge variant="secondary" className="text-xs">
+                                  {variable.key}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {variable.data_type}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {variable.description}
+                              </p>
+                            </div>
+                            <div className="space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingVariable(variable);
+                                  setShowVariableForm(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-600">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Tab 4: Branding */}
           <TabsContent value="branding" className="space-y-6">
             <Card>
               <CardHeader>
