@@ -1127,37 +1127,6 @@ DECLARE @SystemVars TABLE (
     is_editable BIT
 );
 
-INSERT INTO @SystemVars VALUES
--- Categoría: Configuración General
-('org.max_users', 'Máximo de usuarios', 'Límite de usuarios para la organización', 'number', '100', 'Configuración General', 0, 1),
-('org.allow_user_registration', 'Permitir registro de usuarios', 'Los usuarios pueden registrarse automáticamente', 'boolean', 'true', 'Configuración General', 0, 1),
-('org.default_user_role', 'Rol por defecto', 'Rol asignado a nuevos usuarios', 'string', 'user', 'Configuración General', 0, 1),
-
--- Categoría: Notificaciones
-('notifications.email_enabled', 'Notificaciones por email', 'Habilitar envío de emails', 'boolean', 'true', 'Notificaciones', 0, 1),
-('notifications.sms_enabled', 'Notificaciones por SMS', 'Habilitar envío de SMS', 'boolean', 'false', 'Notificaciones', 0, 1),
-('notifications.welcome_email', 'Email de bienvenida', 'Enviar email al crear usuario', 'boolean', 'true', 'Notificaciones', 0, 1),
-
--- Categoría: Seguridad
-('security.password_min_length', 'Longitud mínima de contraseña', 'Caracteres mínimos para contraseñas', 'number', '8', 'Seguridad', 1, 1),
-('security.password_require_uppercase', 'Requerir mayúsculas', 'Las contraseñas deben tener mayúsculas', 'boolean', 'true', 'Seguridad', 0, 1),
-('security.session_timeout', 'Timeout de sesión (horas)', 'Horas antes de cerrar sesión automáticamente', 'number', '24', 'Seguridad', 0, 1),
-('security.max_login_attempts', 'Intentos máximos de login', 'Intentos antes de bloquear cuenta', 'number', '5', 'Seguridad', 1, 1),
-
--- Categoría: Facturación
-('billing.tax_rate', 'Tasa de impuesto (%)', 'Porcentaje de impuesto por defecto', 'number', '19', 'Facturación', 0, 1),
-('billing.default_payment_terms', 'Términos de pago (días)', 'Días de plazo por defecto', 'number', '30', 'Facturación', 0, 1),
-('billing.auto_invoice', 'Facturación automática', 'Generar facturas automáticamente', 'boolean', 'true', 'Facturación', 0, 1),
-
--- Variables del sistema (solo lectura)
-('system.version', 'Versión del sistema', 'Versión actual del sistema', 'string', '1.0.0', 'Sistema', 1, 0),
-('system.maintenance_mode', 'Modo mantenimiento', 'Sistema en modo mantenimiento', 'boolean', 'false', 'Sistema', 1, 1);
-
--- Insertar variables que no existen
-INSERT INTO system_variables ([key], name, description, data_type, default_value, category, is_required, is_editable, active, created_at, updated_at, created_by, updated_by)
-SELECT sv.[key], sv.name, sv.description, sv.data_type, sv.default_value, sv.category, sv.is_required, sv.is_editable, 1, GETDATE(), GETDATE(), @SuperAdminUserId, @SuperAdminUserId
-FROM @SystemVars sv
-WHERE NOT EXISTS (SELECT 1 FROM system_variables WHERE [key] = sv.[key] AND active = 1);
 
 DECLARE @SystemVarsCreated INT = @@ROWCOUNT;
 IF @SystemVarsCreated > 0

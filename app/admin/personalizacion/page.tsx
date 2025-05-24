@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CorporateThemeSelector } from '@/components/corporate-theme-selector';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -119,8 +119,45 @@ export default function PersonalizacionPage() {
     fetchData();
   }, [currentOrganization, hasPermission]);
 
+  // Optimized state update functions
+  const updateGroupField = useCallback((field: keyof VariableGroup, value: any) => {
+    setEditingGroup(prev => prev ? { ...prev, [field]: value } : null);
+  }, []);
+
+  const updateVariableField = useCallback((field: keyof SystemVariable, value: any) => {
+    setEditingVariable(prev => prev ? { ...prev, [field]: value } : null);
+  }, []);
+
+  const updateVariableConfig = useCallback((field: string, value: any) => {
+    setEditingVariable(prev => prev ? {
+      ...prev,
+      config: { ...(prev.config || {}), [field]: value }
+    } : null);
+  }, []);
+
+  // Memoized validations to prevent recalculations
+  const isVariableValid = useMemo(() => {
+    if (!editingVariable) return false;
+    
+    const basicValid = editingVariable.key && editingVariable.name && editingVariable.description;
+    
+    if (editingVariable.data_type === 'autoincremental') {
+      const configValid = editingVariable.config?.suffix && 
+                         editingVariable.config?.digits && 
+                         editingVariable.config.digits >= 1 && 
+                         editingVariable.config.digits <= 20;
+      return basicValid && configValid;
+    }
+    
+    return basicValid;
+  }, [editingVariable]);
+
+  const isGroupValid = useMemo(() => {
+    return editingGroup?.name && editingGroup.name.trim().length > 0;
+  }, [editingGroup]);
+
   // Variable Groups Functions
-  const handleCreateGroup = async () => {
+  const handleCreateGroup = useCallback(async () => {
     if (!editingGroup?.name) {
       toast.error('El nombre del grupo es requerido');
       return;
@@ -154,9 +191,9 @@ export default function PersonalizacionPage() {
       console.error('Error creating group:', error);
       toast.error('Error al crear el grupo');
     }
-  };
+  }, [editingGroup]);
 
-  const handleUpdateGroup = async () => {
+  const handleUpdateGroup = useCallback(async () => {
     if (!editingGroup?.name || !editingGroup.id) {
       toast.error('Datos de grupo inválidos');
       return;
@@ -190,7 +227,7 @@ export default function PersonalizacionPage() {
       console.error('Error updating group:', error);
       toast.error('Error al actualizar el grupo');
     }
-  };
+  }, [editingGroup]);
 
   const handleDeleteGroup = async (groupId: number) => {
     try {
@@ -900,7 +937,7 @@ export default function PersonalizacionPage() {
                       <Label>Nombre del Grupo *</Label>
                       <Input
                         value={editingGroup?.name || ''}
-                        onChange={(e) => setEditingGroup(prev => prev ? {...prev, name: e.target.value} : null)}
+                        onChange={(e) => updateGroupField('name', e.target.value)}
                         placeholder="Ej: Configuración General"
                       />
                     </div>
@@ -908,7 +945,7 @@ export default function PersonalizacionPage() {
                       <Label>Descripción</Label>
                       <Textarea
                         value={editingGroup?.description || ''}
-                        onChange={(e) => setEditingGroup(prev => prev ? {...prev, description: e.target.value} : null)}
+                        onChange={(e) => updateGroupField('description', e.target.value)}
                         placeholder="Describe el propósito de este grupo"
                         rows={3}
                       />
@@ -921,7 +958,7 @@ export default function PersonalizacionPage() {
                     </Button>
                     <Button 
                       onClick={editingGroup?.id ? handleUpdateGroup : handleCreateGroup}
-                      disabled={!editingGroup?.name}
+                      disabled={!isGroupValid}
                     >
                       {editingGroup?.id ? 'Actualizar' : 'Crear'} Grupo
                     </Button>
@@ -953,7 +990,7 @@ export default function PersonalizacionPage() {
                         <Label>Clave de Variable *</Label>
                         <Input
                           value={editingVariable?.key || ''}
-                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, key: e.target.value} : null)}
+                          onChange={(e) => updateVariableField('key', e.target.value)}
                           placeholder="ej: company_name"
                           disabled={!!editingVariable?.id} // No editable if editing
                           className={!editingVariable?.key && !editingVariable?.id ? 'border-red-300' : ''}
@@ -970,7 +1007,7 @@ export default function PersonalizacionPage() {
                         <Label>Nombre *</Label>
                         <Input
                           value={editingVariable?.name || ''}
-                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, name: e.target.value} : null)}
+                          onChange={(e) => updateVariableField('name', e.target.value)}
                           placeholder="ej: Nombre de la Empresa"
                           className={!editingVariable?.name ? 'border-red-300' : ''}
                         />
@@ -983,7 +1020,7 @@ export default function PersonalizacionPage() {
                         <Label>Descripción *</Label>
                         <Textarea
                           value={editingVariable?.description || ''}
-                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, description: e.target.value} : null)}
+                          onChange={(e) => updateVariableField('description', e.target.value)}
                           placeholder="Describe para qué sirve esta variable"
                           rows={3}
                           className={!editingVariable?.description ? 'border-red-300' : ''}
@@ -1081,10 +1118,7 @@ export default function PersonalizacionPage() {
                               <Label className="text-xs">Sufijo *</Label>
                               <Input
                                 value={editingVariable.config?.suffix || ''}
-                                onChange={(e) => setEditingVariable(prev => prev ? {
-                                  ...prev, 
-                                  config: {...(prev.config || {}), suffix: e.target.value}
-                                } : null)}
+                                onChange={(e) => updateVariableConfig('suffix', e.target.value)}
                                 placeholder="INV-"
                                 className="text-sm"
                                 required
@@ -1098,10 +1132,7 @@ export default function PersonalizacionPage() {
                               <Input
                                 type="number"
                                 value={editingVariable.config?.digits || 8}
-                                onChange={(e) => setEditingVariable(prev => prev ? {
-                                  ...prev, 
-                                  config: {...(prev.config || {}), digits: parseInt(e.target.value) || 8}
-                                } : null)}
+                                onChange={(e) => updateVariableConfig('digits', parseInt(e.target.value) || 8)}
                                 min="1"
                                 max="20"
                                 className="text-sm"
@@ -1143,17 +1174,7 @@ export default function PersonalizacionPage() {
                     </Button>
                     <Button 
                       onClick={editingVariable?.id ? handleUpdateVariable : handleCreateVariable}
-                      disabled={
-                        !editingVariable?.key || 
-                        !editingVariable?.name || 
-                        !editingVariable?.description ||
-                        (editingVariable?.data_type === 'autoincremental' && (
-                          !editingVariable?.config?.suffix || 
-                          !editingVariable?.config?.digits ||
-                          editingVariable?.config?.digits < 1 ||
-                          editingVariable?.config?.digits > 20
-                        ))
-                      }
+                      disabled={!isVariableValid}
                     >
                       {editingVariable?.id ? 'Actualizar' : 'Crear'} Variable
                     </Button>
