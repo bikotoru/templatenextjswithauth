@@ -525,9 +525,46 @@ BEGIN
 END
 ELSE
     PRINT '→ Tabla theme_settings ya existe';
-DROP TABLE IF EXISTS dbo.system_variables;
+-- Tabla: variable_groups (Grupos de Variables)
+IF NOT EXISTS (
+    SELECT * FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = 'dbo' 
+    AND TABLE_NAME = 'variable_groups'
+)
+BEGIN
+    CREATE TABLE dbo.variable_groups (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        name NVARCHAR(255) NOT NULL,
+        description NVARCHAR(1000),
+        organization_id UNIQUEIDENTIFIER NULL, -- NULL = grupos globales del sistema
+        active BIT DEFAULT 1,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2 DEFAULT GETDATE(),
+        created_by_id INT NOT NULL,
+        updated_by_id INT NOT NULL,
+        
+        CONSTRAINT FK_variable_groups_organization_id 
+            FOREIGN KEY (organization_id) REFERENCES organizations(id),
+        CONSTRAINT FK_variable_groups_created_by_id 
+            FOREIGN KEY (created_by_id) REFERENCES users(id),
+        CONSTRAINT FK_variable_groups_updated_by_id 
+            FOREIGN KEY (updated_by_id) REFERENCES users(id)
+    );
+    
+    -- Crear índices
+    CREATE NONCLUSTERED INDEX IX_variable_groups_organization_id 
+        ON dbo.variable_groups (organization_id);
+    CREATE NONCLUSTERED INDEX IX_variable_groups_active 
+        ON dbo.variable_groups (active);
+    CREATE NONCLUSTERED INDEX IX_variable_groups_name 
+        ON dbo.variable_groups (name);
+    
+    PRINT '✓ Tabla variable_groups creada exitosamente';
+END
+ELSE
+    PRINT '→ Tabla variable_groups ya existe';
 
--- Tabla: system_variables (Variables del Sistema)
+-- Tabla: system_variables (Variables del Sistema) - ACTUALIZADA
 IF NOT EXISTS (
     SELECT * FROM INFORMATION_SCHEMA.TABLES 
     WHERE TABLE_SCHEMA = 'dbo' 
@@ -536,10 +573,11 @@ IF NOT EXISTS (
 BEGIN
     CREATE TABLE dbo.system_variables (
         id INT IDENTITY(1,1) PRIMARY KEY,
+        group_id INT NULL, -- Nueva columna para grupos
         [key] NVARCHAR(100) NOT NULL,
         name NVARCHAR(255) NOT NULL,
         description NVARCHAR(1000),
-        data_type NVARCHAR(50) NOT NULL, -- 'string', 'number', 'boolean', 'json'
+        data_type NVARCHAR(50) NOT NULL, -- 'string', 'number', 'boolean', 'json', 'select', 'range', 'autoincremental'
         default_value NVARCHAR(MAX),
         config NVARCHAR(MAX), -- JSON con configuración adicional
         category NVARCHAR(100),
@@ -552,6 +590,8 @@ BEGIN
         updated_by INT NOT NULL,
         
         -- Foreign Keys
+        CONSTRAINT FK_system_variables_group_id 
+            FOREIGN KEY (group_id) REFERENCES variable_groups(id),
         CONSTRAINT FK_system_variables_created_by 
             FOREIGN KEY (created_by) REFERENCES users(id),
         CONSTRAINT FK_system_variables_updated_by 
@@ -559,15 +599,16 @@ BEGIN
     );
     
     -- Crear índices
+    CREATE NONCLUSTERED INDEX IX_system_variables_group_id 
+        ON dbo.system_variables (group_id);
     CREATE NONCLUSTERED INDEX IX_system_variables_key 
         ON dbo.system_variables ([key]);
-    
     CREATE NONCLUSTERED INDEX IX_system_variables_category 
         ON dbo.system_variables (category);
-    
+    CREATE NONCLUSTERED INDEX IX_system_variables_data_type 
+        ON dbo.system_variables (data_type);
     CREATE NONCLUSTERED INDEX IX_system_variables_active 
         ON dbo.system_variables (active);
-    
     CREATE NONCLUSTERED INDEX IX_system_variables_is_required 
         ON dbo.system_variables (is_required);
     
@@ -630,8 +671,115 @@ END
 ELSE
     PRINT '→ Tabla organization_variables ya existe';
 
+-- Tabla: variable_permissions (Permisos Granulares por Variable)
+IF NOT EXISTS (
+    SELECT * FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = 'dbo' 
+    AND TABLE_NAME = 'variable_permissions'
+)
+BEGIN
+    CREATE TABLE dbo.variable_permissions (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        variable_id INT NOT NULL,
+        user_id INT NULL,  -- NULL si es permiso por rol
+        role_id INT NULL,  -- NULL si es permiso por usuario
+        can_view BIT DEFAULT 0,
+        can_edit BIT DEFAULT 0,
+        active BIT DEFAULT 1,
+        created_at DATETIME2 DEFAULT GETDATE(),
+        updated_at DATETIME2 DEFAULT GETDATE(),
+        created_by_id INT NOT NULL,
+        updated_by_id INT NOT NULL,
+        
+        -- Foreign Keys
+        CONSTRAINT FK_variable_permissions_variable_id 
+            FOREIGN KEY (variable_id) REFERENCES system_variables(id),
+        CONSTRAINT FK_variable_permissions_user_id 
+            FOREIGN KEY (user_id) REFERENCES users(id),
+        CONSTRAINT FK_variable_permissions_role_id 
+            FOREIGN KEY (role_id) REFERENCES roles(id),
+        CONSTRAINT FK_variable_permissions_created_by_id 
+            FOREIGN KEY (created_by_id) REFERENCES users(id),
+        CONSTRAINT FK_variable_permissions_updated_by_id 
+            FOREIGN KEY (updated_by_id) REFERENCES users(id),
+            
+        -- Constraints
+        CONSTRAINT CK_variable_permissions_user_or_role 
+            CHECK ((user_id IS NOT NULL AND role_id IS NULL) OR (user_id IS NULL AND role_id IS NOT NULL)),
+        CONSTRAINT CK_variable_permissions_at_least_one_permission 
+            CHECK (can_view = 1 OR can_edit = 1)
+    );
+    
+    -- Crear índices
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_variable_id 
+        ON dbo.variable_permissions (variable_id);
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_user_id 
+        ON dbo.variable_permissions (user_id);
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_role_id 
+        ON dbo.variable_permissions (role_id);
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_active 
+        ON dbo.variable_permissions (active);
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_can_view 
+        ON dbo.variable_permissions (can_view);
+    CREATE NONCLUSTERED INDEX IX_variable_permissions_can_edit 
+        ON dbo.variable_permissions (can_edit);
+    
+    -- Índices únicos filtrados para evitar duplicados
+    CREATE UNIQUE NONCLUSTERED INDEX UQ_variable_permissions_user_active 
+        ON dbo.variable_permissions (variable_id, user_id) 
+        WHERE active = 1 AND user_id IS NOT NULL;
+        
+    CREATE UNIQUE NONCLUSTERED INDEX UQ_variable_permissions_role_active 
+        ON dbo.variable_permissions (variable_id, role_id) 
+        WHERE active = 1 AND role_id IS NOT NULL;
+    
+    PRINT '✓ Tabla variable_permissions creada exitosamente';
+END
+ELSE
+    PRINT '→ Tabla variable_permissions ya existe';
+
+-- Tabla: variable_values (Valores incrementales y histórico)
+IF NOT EXISTS (
+    SELECT * FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = 'dbo' 
+    AND TABLE_NAME = 'variable_values'
+)
+BEGIN
+    CREATE TABLE dbo.variable_values (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        variable_id INT NOT NULL,
+        organization_id UNIQUEIDENTIFIER NOT NULL,
+        current_value NVARCHAR(MAX) NOT NULL,
+        numeric_value BIGINT NULL, -- Para autoincrementales
+        generated_at DATETIME2 DEFAULT GETDATE(),
+        generated_by_id INT NOT NULL,
+        
+        -- Foreign Keys
+        CONSTRAINT FK_variable_values_variable_id 
+            FOREIGN KEY (variable_id) REFERENCES system_variables(id),
+        CONSTRAINT FK_variable_values_organization_id 
+            FOREIGN KEY (organization_id) REFERENCES organizations(id),
+        CONSTRAINT FK_variable_values_generated_by_id 
+            FOREIGN KEY (generated_by_id) REFERENCES users(id)
+    );
+    
+    -- Crear índices
+    CREATE NONCLUSTERED INDEX IX_variable_values_variable_id 
+        ON dbo.variable_values (variable_id);
+    CREATE NONCLUSTERED INDEX IX_variable_values_organization_id 
+        ON dbo.variable_values (organization_id);
+    CREATE NONCLUSTERED INDEX IX_variable_values_generated_at 
+        ON dbo.variable_values (generated_at);
+    CREATE NONCLUSTERED INDEX IX_variable_values_numeric_value 
+        ON dbo.variable_values (numeric_value);
+    
+    PRINT '✓ Tabla variable_values creada exitosamente';
+END
+ELSE
+    PRINT '→ Tabla variable_values ya existe';
+
 PRINT '';
-PRINT '📋 Tablas principales creadas/verificadas exitosamente';
+PRINT '📋 Tablas de variables creadas/verificadas exitosamente';
 -- =====================================================
 -- 2. CREAR TRIGGERS PARA updated_at
 -- =====================================================
@@ -692,8 +840,22 @@ BEGIN
     PRINT '✓ Trigger organization_variables created';
 END
 
+-- Trigger para variable_groups
+IF NOT EXISTS (SELECT * FROM sys.triggers WHERE name = 'tr_variable_groups_update')
+BEGIN
+    EXEC('CREATE TRIGGER tr_variable_groups_update ON variable_groups AFTER UPDATE AS BEGIN SET NOCOUNT ON; UPDATE variable_groups SET updated_at = GETDATE() WHERE id IN (SELECT id FROM inserted); END');
+    PRINT '✓ Trigger variable_groups created';
+END
+
+-- Trigger para variable_permissions
+IF NOT EXISTS (SELECT * FROM sys.triggers WHERE name = 'tr_variable_permissions_update')
+BEGIN
+    EXEC('CREATE TRIGGER tr_variable_permissions_update ON variable_permissions AFTER UPDATE AS BEGIN SET NOCOUNT ON; UPDATE variable_permissions SET updated_at = GETDATE() WHERE id IN (SELECT id FROM inserted); END');
+    PRINT '✓ Trigger variable_permissions created';
+END
+
 PRINT '';
-PRINT '⚡ Triggers creados/verificados';
+PRINT '⚡ Triggers para variables creados/verificados';
 
 -- =====================================================
 -- 3. CREAR USUARIO SUPER ADMIN INICIAL
@@ -810,15 +972,31 @@ INSERT INTO @Permissions VALUES
 ('themes:view', 'Ver configuración de temas corporativos', 'themes', 0),
 ('themes:manage', 'Gestionar temas corporativos', 'themes', 0),
 
--- System Variables
+-- System Variables (Solo Super Admin)
 ('system_variables:view', 'Ver variables del sistema', 'system_variables', 1),
 ('system_variables:create', 'Crear variables del sistema', 'system_variables', 1),
 ('system_variables:edit', 'Editar variables del sistema', 'system_variables', 1),
 ('system_variables:delete', 'Eliminar variables del sistema', 'system_variables', 1),
 
--- Organization Variables
+-- Variable Groups (Solo Super Admin)
+('variable_groups:view', 'Ver grupos de variables', 'variable_groups', 1),
+('variable_groups:create', 'Crear grupos de variables', 'variable_groups', 1),
+('variable_groups:edit', 'Editar grupos de variables', 'variable_groups', 1),
+('variable_groups:delete', 'Eliminar grupos de variables', 'variable_groups', 1),
+
+-- Variable Permissions (Solo Super Admin)
+('variable_permissions:manage', 'Gestionar permisos de variables', 'variable_permissions', 1),
+
+-- Variables Management (Solo Super Admin)
+('variables:manage', 'Gestión completa de variables del sistema', 'variables', 1),
+
+-- Organization Variables (Para usuarios finales)
 ('org_variables:view', 'Ver variables de organización', 'org_variables', 0),
 ('org_variables:edit', 'Editar variables de organización', 'org_variables', 0),
+
+-- User Variables (Para usuarios finales - acceso a variables asignadas)
+('user_variables:view', 'Ver variables asignadas al usuario', 'user_variables', 0),
+('user_variables:use', 'Usar variables asignadas (obtener valores)', 'user_variables', 0),
 
 -- Organization Settings
 ('org_settings:view', 'Ver configuración de organización', 'org_settings', 0),

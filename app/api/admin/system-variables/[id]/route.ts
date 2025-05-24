@@ -18,24 +18,16 @@ export async function GET(
       return NextResponse.json({ message: 'Sin permisos para ver variables del sistema' }, { status: 403 });
     }
 
-    // Get the system variable
+    // Get the system variable with group information
     const variable = await executeQuery(
       `SELECT 
-        id,
-        [key],
-        name,
-        description,
-        default_value,
-        data_type,
-        category,
-        is_required,
-        is_editable,
-        config,
-        created_at,
-        updated_at
-      FROM system_variables 
-      WHERE id = ?`,
-      [id]
+        sv.id, sv.group_id, sv.[key], sv.name, sv.description, sv.default_value, sv.data_type, sv.category,
+        sv.is_required, sv.is_editable, sv.config, sv.created_at, sv.updated_at,
+        vg.name as group_name
+      FROM system_variables sv
+      LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
+      WHERE sv.id = @id AND sv.active = 1`,
+      { id: parseInt(id) }
     );
 
     if (variable.length === 0) {
@@ -75,7 +67,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, description, default_value, data_type, category, is_required, is_editable, config } = body;
+    const { name, description, default_value, data_type, category, is_required, is_editable, config, group_id } = body;
 
     // Validate required fields
     if (!name || !description || !data_type || !category) {
@@ -86,7 +78,7 @@ export async function PUT(
     }
 
     // Validate data_type
-    const validDataTypes = ['string', 'number', 'boolean', 'json'];
+    const validDataTypes = ['string', 'number', 'boolean', 'json', 'autoincremental'];
     if (!validDataTypes.includes(data_type)) {
       return NextResponse.json(
         { message: 'Tipo de dato inválido' },
@@ -94,10 +86,40 @@ export async function PUT(
       );
     }
 
+    // Validate group_id if provided
+    if (group_id) {
+      const groupExists = await executeQuery(
+        'SELECT id FROM variable_groups WHERE id = @group_id AND active = 1',
+        { group_id }
+      );
+      if (groupExists.length === 0) {
+        return NextResponse.json(
+          { message: 'Grupo de variables no encontrado' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Special validation for autoincremental type
+    if (data_type === 'autoincremental') {
+      if (!config || !config.suffix || !config.digits) {
+        return NextResponse.json(
+          { message: 'Variables autoincrementales requieren configuración de sufijo y dígitos' },
+          { status: 400 }
+        );
+      }
+      if (typeof config.digits !== 'number' || config.digits < 1 || config.digits > 20) {
+        return NextResponse.json(
+          { message: 'El número de dígitos debe ser entre 1 y 20' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Check if variable exists
     const existingVariable = await executeQuery(
-      'SELECT id FROM system_variables WHERE id = @id',
-      { id }
+      'SELECT id FROM system_variables WHERE id = @id AND active = 1',
+      { id: parseInt(id) }
     );
 
     if (existingVariable.length === 0) {
@@ -116,11 +138,12 @@ export async function PUT(
         is_required = @is_required,
         is_editable = @is_editable,
         config = @config,
+        group_id = @group_id,
         updated_by = @updated_by,
         updated_at = GETDATE()
       WHERE id = @id`,
       {
-        id,
+        id: parseInt(id),
         name,
         description,
         default_value: default_value || '',
@@ -129,18 +152,21 @@ export async function PUT(
         is_required: is_required || false,
         is_editable: is_editable !== false,
         config: config ? JSON.stringify(config) : null,
+        group_id: group_id || null,
         updated_by: user.id
       }
     );
 
-    // Get the updated variable
+    // Get the updated variable with group information
     const updatedVariable = await executeQuery(
       `SELECT 
-        id, [key], name, description, default_value, data_type, category, 
-        is_required, is_editable, config, created_at, updated_at
-      FROM system_variables 
-      WHERE id = @id`,
-      { id }
+        sv.id, sv.group_id, sv.[key], sv.name, sv.description, sv.default_value, sv.data_type, sv.category,
+        sv.is_required, sv.is_editable, sv.config, sv.created_at, sv.updated_at,
+        vg.name as group_name
+      FROM system_variables sv
+      LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
+      WHERE sv.id = @id`,
+      { id: parseInt(id) }
     );
 
     const result = {
@@ -176,24 +202,23 @@ export async function DELETE(
 
     // Check if variable exists
     const existingVariable = await executeQuery(
-      'SELECT id FROM system_variables WHERE id = @id',
-      { id }
+      'SELECT id FROM system_variables WHERE id = @id AND active = 1',
+      { id: parseInt(id) }
     );
 
     if (existingVariable.length === 0) {
       return NextResponse.json({ message: 'Variable no encontrada' }, { status: 404 });
     }
 
-    // Delete organization variable values first
+    // Soft delete the variable (preserve data integrity)
     await executeQuery(
-      'DELETE FROM organization_variables WHERE system_variable_id = @id',
-      { id }
-    );
-
-    // Delete the system variable
-    await executeQuery(
-      'DELETE FROM system_variables WHERE id = @id',
-      { id }
+      `UPDATE system_variables 
+       SET active = 0, updated_by = @updated_by, updated_at = GETDATE()
+       WHERE id = @id`,
+      {
+        id: parseInt(id),
+        updated_by: user.id
+      }
     );
 
     return NextResponse.json({ message: 'Variable eliminada correctamente' });
