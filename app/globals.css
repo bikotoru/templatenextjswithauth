@@ -413,6 +413,51 @@
   color: white !important;
 }
 
+/* Estilos adicionales para mejorar hover en toda la aplicación */
+.corporate-theme .hover\:bg-accent:hover,
+.corporate-theme .hover\:bg-primary:hover,
+.corporate-theme .data-\[state\=open\]:hover {
+  background-color: var(--corporate-primary) !important;
+  color: white !important;
+}
+
+.corporate-theme .hover\:bg-accent:hover *,
+.corporate-theme .hover\:bg-primary:hover *,
+.corporate-theme .data-\[state\=open\]:hover * {
+  color: white !important;
+}
+
+/* DropdownMenu items hover */
+.corporate-theme [role="menuitem"]:hover {
+  background-color: var(--corporate-primary) !important;
+  color: white !important;
+}
+
+.corporate-theme [role="menuitem"]:hover * {
+  color: white !important;
+}
+
+/* NavigationMenu hover */
+.corporate-theme .hover\:text-accent-foreground:hover {
+  color: white !important;
+}
+
+/* Botones con hover corporativo */
+.corporate-theme .hover\:bg-muted:hover {
+  background-color: oklch(from var(--corporate-primary) l c h / 0.1) !important;
+  color: var(--corporate-primary) !important;
+}
+
+/* Estados activos con texto coherente */
+.corporate-theme .bg-accent {
+  background-color: var(--corporate-primary) !important;
+  color: white !important;
+}
+
+.corporate-theme .bg-accent * {
+  color: white !important;
+}
+
 /* Transiciones suaves para cambios de tema */
 :root {
   transition: background-color 0.3s ease, color 0.3s ease;
