@@ -458,6 +458,40 @@
   color: white !important;
 }
 
+/* Estilos específicos para Tabs corporativos */
+.corporate-theme [data-slot="tabs-list"] {
+  background-color: var(--corporate-surface) !important;
+  border: 1px solid var(--corporate-border) !important;
+}
+
+.corporate-theme [data-slot="tabs-trigger"] {
+  color: var(--corporate-textSecondary) !important;
+  transition: all 0.2s ease !important;
+}
+
+.corporate-theme [data-slot="tabs-trigger"]:hover {
+  color: var(--corporate-text) !important;
+  background-color: oklch(from var(--corporate-primary) l c h / 0.05) !important;
+}
+
+.corporate-theme [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--corporate-background) !important;
+  color: var(--corporate-primary) !important;
+  border: 1px solid var(--corporate-border) !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.corporate-theme [data-slot="tabs-trigger"][data-state="active"] * {
+  color: var(--corporate-primary) !important;
+}
+
+/* Modo oscuro para tabs */
+.corporate-theme.dark [data-slot="tabs-trigger"][data-state="active"] {
+  background-color: var(--corporate-surface) !important;
+  color: var(--corporate-primary) !important;
+  border: 1px solid var(--corporate-border) !important;
+}
+
 /* Transiciones suaves para cambios de tema */
 :root {
   transition: background-color 0.3s ease, color 0.3s ease;
