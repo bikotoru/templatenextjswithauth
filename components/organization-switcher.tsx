@@ -67,7 +67,7 @@ export function OrganizationSwitcher() {
       <Button 
         variant="outline" 
         size="sm" 
-        className="w-[200px] justify-between px-3"
+        className="w-[200px] justify-between px-3 corporate-org-switcher"
         onClick={() => setIsModalOpen(true)}
         disabled={isLoading}
       >

@@ -202,21 +202,171 @@
 }
 
 /* Sobrescribir algunos colores de shadcn con colores corporativos cuando esté activo */
-.corporate-theme {
-  --primary: var(--corporate-primary);
-  --secondary: var(--corporate-secondary);
-  --accent: var(--corporate-accent);
-  --background: var(--corporate-background);
-  --card: var(--corporate-surface);
-  --border: var(--corporate-border);
-  --foreground: var(--corporate-text);
-  --muted-foreground: var(--corporate-textSecondary);
-  --destructive: var(--corporate-error);
+.corporate-theme:not(.dark) {
+  --primary: var(--corporate-primary-oklch);
+  --secondary: var(--corporate-secondary-oklch);
+  --accent: var(--corporate-accent-oklch);
+  --background: var(--corporate-background-oklch);
+  --card: var(--corporate-surface-oklch);
+  --border: var(--corporate-border-oklch);
+  --foreground: var(--corporate-text-oklch);
+  --muted-foreground: var(--corporate-textSecondary-oklch);
+  --destructive: var(--corporate-error-oklch);
+  
+  /* Variables adicionales para elementos específicos */
+  --sidebar: var(--corporate-surface-oklch);
+  --sidebar-foreground: var(--corporate-text-oklch);
+  --sidebar-primary: var(--corporate-primary-oklch);
+  --sidebar-primary-foreground: var(--corporate-background-oklch);
+  --sidebar-accent: var(--corporate-accent-oklch);
+  --sidebar-accent-foreground: var(--corporate-text-oklch);
+  --sidebar-border: var(--corporate-border-oklch);
+  --popover: var(--corporate-surface-oklch);
+  --popover-foreground: var(--corporate-text-oklch);
+  --muted: var(--corporate-surface-oklch);
+  --input: var(--corporate-border-oklch);
+  --primary-foreground: var(--corporate-background-oklch);
+  --secondary-foreground: var(--corporate-text-oklch);
+  --accent-foreground: var(--corporate-text-oklch);
+  --card-foreground: var(--corporate-text-oklch);
+}
+
+/* Modo oscuro corporativo */
+.corporate-theme.dark {
+  --primary: var(--corporate-primary-oklch);
+  --secondary: var(--corporate-secondary-oklch);
+  --accent: var(--corporate-accent-oklch);
+  --background: var(--corporate-background-oklch);
+  --card: var(--corporate-surface-oklch);
+  --border: var(--corporate-border-oklch);
+  --foreground: var(--corporate-text-oklch);
+  --muted-foreground: var(--corporate-textSecondary-oklch);
+  --destructive: var(--corporate-error-oklch);
+  
+  /* Variables específicas para modo oscuro */
+  --sidebar: var(--corporate-surface-oklch);
+  --sidebar-foreground: var(--corporate-text-oklch);
+  --sidebar-primary: var(--corporate-primary-oklch);
+  --sidebar-primary-foreground: var(--corporate-background-oklch);
+  --input: var(--corporate-border-oklch);
+  --primary-foreground: var(--corporate-background-oklch);
+  --secondary-foreground: var(--corporate-text-oklch);
+  --accent-foreground: var(--corporate-text-oklch);
+  --card-foreground: var(--corporate-text-oklch);
+}
+
+/* Estilos específicos para el header corporativo */
+.corporate-theme .corporate-header {
+  background-color: var(--corporate-primary);
+  border-color: var(--corporate-primary);
+  color: var(--corporate-background);
+}
+
+.corporate-theme .corporate-header h1 {
+  color: var(--corporate-background);
+}
+
+.corporate-theme .corporate-header .text-muted-foreground {
+  color: oklch(from var(--corporate-background) l c h / 0.8);
+}
+
+.corporate-theme .corporate-header .corporate-header-button {
+  color: var(--corporate-background);
+}
+
+.corporate-theme .corporate-header .corporate-header-button:hover {
+  background-color: oklch(from var(--corporate-background) l c h / 0.1);
+}
+
+/* Modo oscuro para header corporativo */
+.corporate-theme.dark .corporate-header {
+  background-color: var(--corporate-surface);
+  border-color: var(--corporate-border);
+  color: var(--corporate-text);
+}
+
+.corporate-theme.dark .corporate-header h1 {
+  color: var(--corporate-text);
+}
+
+.corporate-theme.dark .corporate-header .text-muted-foreground {
+  color: var(--corporate-textSecondary);
+}
+
+.corporate-theme.dark .corporate-header .corporate-header-button {
+  color: var(--corporate-text);
+}
+
+.corporate-theme.dark .corporate-header .corporate-header-button:hover {
+  background-color: oklch(from var(--corporate-text) l c h / 0.1);
+}
+
+/* Estilos para OrganizationSwitcher en header corporativo */
+.corporate-theme .corporate-header .corporate-org-switcher {
+  border-color: oklch(from var(--corporate-background) l c h / 0.3);
+  background-color: oklch(from var(--corporate-background) l c h / 0.1);
+  color: var(--corporate-background);
+}
+
+.corporate-theme .corporate-header .corporate-org-switcher:hover {
+  background-color: oklch(from var(--corporate-background) l c h / 0.2);
+}
+
+.corporate-theme.dark .corporate-header .corporate-org-switcher {
+  border-color: var(--corporate-border);
+  background-color: oklch(from var(--corporate-text) l c h / 0.05);
+  color: var(--corporate-text);
+}
+
+.corporate-theme.dark .corporate-header .corporate-org-switcher:hover {
+  background-color: oklch(from var(--corporate-text) l c h / 0.1);
+}
+
+/* Estilos para ThemeToggle en header corporativo */
+.corporate-theme .corporate-header .corporate-theme-toggle {
+  color: var(--corporate-background);
+}
+
+.corporate-theme .corporate-header .corporate-theme-toggle:hover {
+  background-color: oklch(from var(--corporate-background) l c h / 0.1);
+}
+
+.corporate-theme.dark .corporate-header .corporate-theme-toggle {
+  color: var(--corporate-text);
+}
+
+.corporate-theme.dark .corporate-header .corporate-theme-toggle:hover {
+  background-color: oklch(from var(--corporate-text) l c h / 0.1);
+}
+
+/* Estilos para el Avatar de usuario en header corporativo */
+.corporate-theme .corporate-header .corporate-user-avatar {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.corporate-theme .corporate-header .corporate-user-avatar .user-fallback {
+  color: var(--corporate-primary);
+  font-weight: 600;
+}
+
+.corporate-theme.dark .corporate-header .corporate-user-avatar {
+  border: 2px solid var(--corporate-border);
+  background-color: var(--corporate-surface);
+}
+
+.corporate-theme.dark .corporate-header .corporate-user-avatar .user-fallback {
+  color: var(--corporate-text);
+  font-weight: 600;
 }
 
 /* Transiciones suaves para cambios de tema */
 :root {
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.corporate-header {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 @layer base {

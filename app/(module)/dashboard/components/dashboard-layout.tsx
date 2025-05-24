@@ -185,9 +185,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           {/* Top Bar */}
-          <header className="h-16 border-b bg-background flex items-center justify-between px-6">
+          <header className="h-16 border-b bg-background flex items-center justify-between px-6 corporate-header">
             <div className="flex items-center space-x-4">
-              <SidebarTrigger className="lg:hidden">
+              <SidebarTrigger className="lg:hidden corporate-header-button">
                 <Menu className="h-6 w-6" />
               </SidebarTrigger>
               <div>
@@ -214,10 +214,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full corporate-header-button">
+                    <Avatar className="h-8 w-8 corporate-user-avatar">
                       <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                      <AvatarFallback className="user-fallback">{getInitials(user.name)}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
