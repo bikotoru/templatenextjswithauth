@@ -199,7 +199,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   {pathname.startsWith('/admin/organizations') && 'Gestión de Organizaciones'}
                   {pathname.startsWith('/admin/theme') && 'Configuración de Tema'}
                   {pathname.startsWith('/admin/personalizacion') && 'Personalización'}
-                  {pathname.startsWith('/admin/variables') && 'Variables del Sistema'}
                 </h1>
                 {currentOrganization && (
                   <p className="text-sm text-muted-foreground">
@@ -271,14 +270,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         </div>
                       </DropdownMenuLabel>
                       
-                      {hasPermission('variables:manage') && (
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin/variables" className="cursor-pointer">
-                            <Cog className="mr-2 h-4 w-4" />
-                            <span>Variables del Sistema</span>
-                          </Link>
-                        </DropdownMenuItem>
-                      )}
 
                       {hasPermission('users:view') && (
                         <DropdownMenuItem asChild>
