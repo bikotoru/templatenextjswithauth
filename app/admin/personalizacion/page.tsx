@@ -71,6 +71,7 @@ export default function PersonalizacionPage() {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingVariable, setEditingVariable] = useState<SystemVariable | null>(null);
   const [editingGroup, setEditingGroup] = useState<VariableGroup | null>(null);
+  const [autoincrementalValues, setAutoincrementalValues] = useState<Record<string, { current_value: number; formatted_value: string }>>({});
   
   // Estados para branding
   const [brandingConfig, setBrandingConfig] = useState({
@@ -110,6 +111,31 @@ export default function PersonalizacionPage() {
             const groups = await groupsResponse.json();
             setVariableGroups(groups);
           }
+        }
+
+        // Fetch autoincremental current values
+        try {
+          const autoincrementalVars = sysVars.filter((v: SystemVariable) => v.data_type === 'autoincremental');
+          const autoincrementalData: Record<string, { current_value: number; formatted_value: string }> = {};
+          
+          for (const variable of autoincrementalVars) {
+            try {
+              const response = await fetch(`/api/variables/${variable.id}/increment`);
+              if (response.ok) {
+                const data = await response.json();
+                autoincrementalData[variable.key] = {
+                  current_value: data.current_value || 0,
+                  formatted_value: data.formatted_value || null
+                };
+              }
+            } catch (error) {
+              console.warn(`Error fetching autoincremental data for ${variable.key}:`, error);
+            }
+          }
+          
+          setAutoincrementalValues(autoincrementalData);
+        } catch (error) {
+          console.warn('Error fetching autoincremental values:', error);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -470,6 +496,65 @@ export default function PersonalizacionPage() {
             placeholder="JSON"
             className="w-48 text-sm font-mono"
           />
+        );
+      case 'autoincremental':
+        const currentAutoValue = autoincrementalValues[variable.key];
+        const nextValue = (currentAutoValue?.current_value || 0) + 1;
+        const digits = variable.config?.digits || 8;
+        const suffix = variable.config?.suffix || '';
+        
+        return (
+          <div className="space-y-2 min-w-[250px]">
+            <div className="flex items-center space-x-2">
+              <Label className="text-xs text-gray-600">Prefijo:</Label>
+              <Input
+                value={suffix}
+                onChange={(e) => {
+                  // Update only the suffix in the config
+                  const newConfig = { ...variable.config, suffix: e.target.value };
+                  handleSaveVariable(variable.key, JSON.stringify(newConfig));
+                  
+                  // Update the variable config in memory immediately for preview
+                  const updatedVariables = systemVariables.map(v => 
+                    v.key === variable.key 
+                      ? { ...v, config: newConfig }
+                      : v
+                  );
+                  setSystemVariables(updatedVariables);
+                }}
+                placeholder="INV-"
+                className="w-24 text-sm"
+              />
+            </div>
+            
+            {/* Current Value */}
+            {currentAutoValue?.formatted_value && (
+              <div className="p-2 bg-green-50 border border-green-200 rounded">
+                <Label className="text-xs text-green-700">Último valor generado:</Label>
+                <div className="font-mono text-green-800 text-sm font-semibold">
+                  {currentAutoValue.formatted_value}
+                </div>
+              </div>
+            )}
+            
+            {/* Next Value Preview */}
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+              <Label className="text-xs text-blue-700">Próximo valor será:</Label>
+              <div className="font-mono text-blue-800 text-sm font-semibold">
+                {suffix}{'0'.repeat(Math.max(0, digits - String(nextValue).length))}{nextValue}
+              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                Formato: {digits} dígitos totales
+              </p>
+            </div>
+            
+            {/* Info */}
+            <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+              <p className="text-xs text-gray-600">
+                💡 Solo puedes modificar el prefijo. El número se incrementa automáticamente.
+              </p>
+            </div>
+          </div>
         );
       default:
         return (
