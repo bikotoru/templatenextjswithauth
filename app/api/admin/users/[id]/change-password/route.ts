@@ -1,0 +1,1 @@
+export { POST } from '@/app/(module)/admin/users/api/[id]/change-password/route';

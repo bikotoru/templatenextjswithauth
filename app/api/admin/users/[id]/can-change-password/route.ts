@@ -1,0 +1,1 @@
+export { GET } from '@/app/(module)/admin/users/api/[id]/can-change-password/route';
