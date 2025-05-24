@@ -10,6 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Palette, 
   Settings, 
@@ -115,6 +118,229 @@ export default function PersonalizacionPage() {
 
     fetchData();
   }, [currentOrganization, hasPermission]);
+
+  // Variable Groups Functions
+  const handleCreateGroup = async () => {
+    if (!editingGroup?.name) {
+      toast.error('El nombre del grupo es requerido');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/variable-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingGroup.name,
+          description: editingGroup.description
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Grupo creado correctamente');
+        setShowGroupForm(false);
+        setEditingGroup(null);
+        // Refresh groups
+        const groupsResponse = await fetch('/api/admin/variable-groups');
+        if (groupsResponse.ok) {
+          const groups = await groupsResponse.json();
+          setVariableGroups(groups);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al crear el grupo');
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
+      toast.error('Error al crear el grupo');
+    }
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!editingGroup?.name || !editingGroup.id) {
+      toast.error('Datos de grupo inválidos');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/variable-groups/${editingGroup.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingGroup.name,
+          description: editingGroup.description
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Grupo actualizado correctamente');
+        setShowGroupForm(false);
+        setEditingGroup(null);
+        // Refresh groups
+        const groupsResponse = await fetch('/api/admin/variable-groups');
+        if (groupsResponse.ok) {
+          const groups = await groupsResponse.json();
+          setVariableGroups(groups);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al actualizar el grupo');
+      }
+    } catch (error) {
+      console.error('Error updating group:', error);
+      toast.error('Error al actualizar el grupo');
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: number) => {
+    try {
+      const response = await fetch(`/api/admin/variable-groups/${groupId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast.success('Grupo eliminado correctamente');
+        // Refresh groups and variables
+        const groupsResponse = await fetch('/api/admin/variable-groups');
+        const varsResponse = await fetch('/api/admin/system-variables');
+        if (groupsResponse.ok && varsResponse.ok) {
+          const groups = await groupsResponse.json();
+          const vars = await varsResponse.json();
+          setVariableGroups(groups);
+          setAllSystemVariables(vars);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al eliminar el grupo');
+      }
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      toast.error('Error al eliminar el grupo');
+    }
+  };
+
+  // Variables Functions
+  const handleCreateVariable = async () => {
+    // Validaciones básicas
+    if (!editingVariable?.key || !editingVariable?.name || !editingVariable?.description) {
+      toast.error('Campos requeridos: Clave, Nombre y Descripción');
+      return;
+    }
+
+    // Validaciones específicas para autoincremental
+    if (editingVariable.data_type === 'autoincremental') {
+      if (!editingVariable.config?.suffix) {
+        toast.error('Variables autoincrementales requieren un sufijo');
+        return;
+      }
+      if (!editingVariable.config?.digits || editingVariable.config.digits < 1 || editingVariable.config.digits > 20) {
+        toast.error('El número de dígitos debe ser entre 1 y 20');
+        return;
+      }
+    }
+
+    // Validación de clave (solo letras, números y guiones bajos)
+    if (!/^[a-zA-Z0-9_]+$/.test(editingVariable.key)) {
+      toast.error('La clave solo puede contener letras, números y guiones bajos');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/system-variables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingVariable)
+      });
+
+      if (response.ok) {
+        toast.success('Variable creada correctamente');
+        setShowVariableForm(false);
+        setEditingVariable(null);
+        // Refresh variables
+        const varsResponse = await fetch('/api/admin/system-variables');
+        if (varsResponse.ok) {
+          const vars = await varsResponse.json();
+          setAllSystemVariables(vars);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al crear la variable');
+      }
+    } catch (error) {
+      console.error('Error creating variable:', error);
+      toast.error('Error al crear la variable');
+    }
+  };
+
+  const handleUpdateVariable = async () => {
+    // Validaciones básicas
+    if (!editingVariable?.id || !editingVariable?.name || !editingVariable?.description) {
+      toast.error('Campos requeridos: Nombre y Descripción');
+      return;
+    }
+
+    // Validaciones específicas para autoincremental
+    if (editingVariable.data_type === 'autoincremental') {
+      if (!editingVariable.config?.suffix) {
+        toast.error('Variables autoincrementales requieren un sufijo');
+        return;
+      }
+      if (!editingVariable.config?.digits || editingVariable.config.digits < 1 || editingVariable.config.digits > 20) {
+        toast.error('El número de dígitos debe ser entre 1 y 20');
+        return;
+      }
+    }
+
+    try {
+      const response = await fetch(`/api/admin/system-variables/${editingVariable.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingVariable)
+      });
+
+      if (response.ok) {
+        toast.success('Variable actualizada correctamente');
+        setShowVariableForm(false);
+        setEditingVariable(null);
+        // Refresh variables
+        const varsResponse = await fetch('/api/admin/system-variables');
+        if (varsResponse.ok) {
+          const vars = await varsResponse.json();
+          setAllSystemVariables(vars);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al actualizar la variable');
+      }
+    } catch (error) {
+      console.error('Error updating variable:', error);
+      toast.error('Error al actualizar la variable');
+    }
+  };
+
+  const handleDeleteVariable = async (variableId: string) => {
+    try {
+      const response = await fetch(`/api/admin/system-variables/${variableId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        toast.success('Variable eliminada correctamente');
+        // Refresh variables
+        const varsResponse = await fetch('/api/admin/system-variables');
+        if (varsResponse.ok) {
+          const vars = await varsResponse.json();
+          setAllSystemVariables(vars);
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.message || 'Error al eliminar la variable');
+      }
+    } catch (error) {
+      console.error('Error deleting variable:', error);
+      toast.error('Error al eliminar la variable');
+    }
+  };
 
   const handleSaveVariable = async (variableKey: string, value: any) => {
     if (!currentOrganization) return;
@@ -333,11 +559,32 @@ export default function PersonalizacionPage() {
                   </p>
                 </div>
                 <div className="space-x-2">
-                  <Button onClick={() => setShowGroupForm(true)} variant="outline">
+                  <Button 
+                    onClick={() => {
+                      setEditingGroup({ name: '', description: '' } as VariableGroup);
+                      setShowGroupForm(true);
+                    }} 
+                    variant="outline"
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Nuevo Grupo
                   </Button>
-                  <Button onClick={() => setShowVariableForm(true)}>
+                  <Button 
+                    onClick={() => {
+                      setEditingVariable({
+                        key: '',
+                        name: '',
+                        description: '',
+                        data_type: 'string',
+                        category: 'general',
+                        is_required: false,
+                        is_editable: true,
+                        default_value: '',
+                        config: {}
+                      } as SystemVariable);
+                      setShowVariableForm(true);
+                    }}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Nueva Variable
                   </Button>
@@ -356,7 +603,12 @@ export default function PersonalizacionPage() {
                       <p className="text-gray-500 mb-6">
                         Comienza creando tu primer grupo de variables para organizar la configuración.
                       </p>
-                      <Button onClick={() => setShowGroupForm(true)}>
+                      <Button 
+                        onClick={() => {
+                          setEditingGroup({ name: '', description: '' } as VariableGroup);
+                          setShowGroupForm(true);
+                        }}
+                      >
                         <Plus className="mr-2 h-4 w-4" />
                         Crear Primer Grupo
                       </Button>
@@ -391,9 +643,27 @@ export default function PersonalizacionPage() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-red-600">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-red-600">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Eliminar grupo?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta acción eliminará permanentemente el grupo "{group.name}" y todas sus variables asociadas. Esta acción no se puede deshacer.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteGroup(group.id)}>
+                                      Eliminar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                         </CardHeader>
@@ -407,7 +677,18 @@ export default function PersonalizacionPage() {
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => {
-                                  setEditingVariable({ group_id: group.id } as SystemVariable);
+                                  setEditingVariable({
+                                    group_id: group.id,
+                                    key: '',
+                                    name: '',
+                                    description: '',
+                                    data_type: 'string',
+                                    category: 'general',
+                                    is_required: false,
+                                    is_editable: true,
+                                    default_value: '',
+                                    config: {}
+                                  } as SystemVariable);
                                   setShowVariableForm(true);
                                 }}
                               >
@@ -465,9 +746,27 @@ export default function PersonalizacionPage() {
                                     >
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" className="text-red-600">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="text-red-600">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>¿Eliminar variable?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Esta acción eliminará permanentemente la variable "{variable.name}". Esta acción no se puede deshacer.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDeleteVariable(variable.id)}>
+                                            Eliminar
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </div>
                                 </div>
                               ))}
@@ -477,7 +776,18 @@ export default function PersonalizacionPage() {
                                   size="sm" 
                                   className="w-full"
                                   onClick={() => {
-                                    setEditingVariable({ group_id: group.id } as SystemVariable);
+                                    setEditingVariable({
+                                      group_id: group.id,
+                                      key: '',
+                                      name: '',
+                                      description: '',
+                                      data_type: 'string',
+                                      category: 'general',
+                                      is_required: false,
+                                      is_editable: true,
+                                      default_value: '',
+                                      config: {}
+                                    } as SystemVariable);
                                     setShowVariableForm(true);
                                   }}
                                 >
@@ -540,9 +850,27 @@ export default function PersonalizacionPage() {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-red-600">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-red-600">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Eliminar variable?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta acción eliminará permanentemente la variable "{variable.name}". Esta acción no se puede deshacer.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteVariable(variable.id)}>
+                                      Eliminar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                         ))}
@@ -551,6 +879,287 @@ export default function PersonalizacionPage() {
                   </Card>
                 )}
               </div>
+
+              {/* Group Form Modal */}
+              <Dialog open={showGroupForm} onOpenChange={setShowGroupForm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingGroup?.id ? 'Editar Grupo' : 'Nuevo Grupo'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {editingGroup?.id 
+                        ? 'Modifica la información del grupo de variables.' 
+                        : 'Crea un nuevo grupo para organizar las variables.'
+                      }
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Nombre del Grupo *</Label>
+                      <Input
+                        value={editingGroup?.name || ''}
+                        onChange={(e) => setEditingGroup(prev => prev ? {...prev, name: e.target.value} : null)}
+                        placeholder="Ej: Configuración General"
+                      />
+                    </div>
+                    <div>
+                      <Label>Descripción</Label>
+                      <Textarea
+                        value={editingGroup?.description || ''}
+                        onChange={(e) => setEditingGroup(prev => prev ? {...prev, description: e.target.value} : null)}
+                        placeholder="Describe el propósito de este grupo"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowGroupForm(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={editingGroup?.id ? handleUpdateGroup : handleCreateGroup}
+                      disabled={!editingGroup?.name}
+                    >
+                      {editingGroup?.id ? 'Actualizar' : 'Crear'} Grupo
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Variable Form Modal */}
+              <Dialog open={showVariableForm} onOpenChange={setShowVariableForm}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingVariable?.id ? 'Editar Variable' : 'Nueva Variable'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {editingVariable?.id 
+                        ? 'Modifica la configuración de la variable.' 
+                        : 'Crea una nueva variable del sistema.'
+                      }
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Basic Info */}
+                    <div className="space-y-4">
+                      <h3 className="font-medium">Información Básica</h3>
+                      
+                      <div>
+                        <Label>Clave de Variable *</Label>
+                        <Input
+                          value={editingVariable?.key || ''}
+                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, key: e.target.value} : null)}
+                          placeholder="ej: company_name"
+                          disabled={!!editingVariable?.id} // No editable if editing
+                          className={!editingVariable?.key && !editingVariable?.id ? 'border-red-300' : ''}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          {editingVariable?.id ? 'La clave no se puede modificar' : 'Solo letras, números y guiones bajos'}
+                        </p>
+                        {!editingVariable?.key && !editingVariable?.id && (
+                          <p className="text-xs text-red-500 mt-1">Clave es requerida</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>Nombre *</Label>
+                        <Input
+                          value={editingVariable?.name || ''}
+                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, name: e.target.value} : null)}
+                          placeholder="ej: Nombre de la Empresa"
+                          className={!editingVariable?.name ? 'border-red-300' : ''}
+                        />
+                        {!editingVariable?.name && (
+                          <p className="text-xs text-red-500 mt-1">Nombre es requerido</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>Descripción *</Label>
+                        <Textarea
+                          value={editingVariable?.description || ''}
+                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, description: e.target.value} : null)}
+                          placeholder="Describe para qué sirve esta variable"
+                          rows={3}
+                          className={!editingVariable?.description ? 'border-red-300' : ''}
+                        />
+                        {!editingVariable?.description && (
+                          <p className="text-xs text-red-500 mt-1">Descripción es requerida</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>Grupo</Label>
+                        <Select 
+                          value={editingVariable?.group_id?.toString() || 'no-group'} 
+                          onValueChange={(value) => setEditingVariable(prev => prev ? {...prev, group_id: value === 'no-group' ? undefined : parseInt(value)} : null)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sin grupo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="no-group">Sin grupo</SelectItem>
+                            {variableGroups.map((group) => (
+                              <SelectItem key={group.id} value={group.id.toString()}>
+                                {group.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Type & Config */}
+                    <div className="space-y-4">
+                      <h3 className="font-medium">Configuración</h3>
+                      
+                      <div>
+                        <Label>Tipo de Variable *</Label>
+                        <Select 
+                          value={editingVariable?.data_type} 
+                          onValueChange={(value: 'string' | 'number' | 'boolean' | 'json' | 'autoincremental') => 
+                            setEditingVariable(prev => prev ? {
+                              ...prev, 
+                              data_type: value, 
+                              config: value === 'autoincremental' ? { suffix: '', digits: 8 } : {}
+                            } : null)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="string">Texto</SelectItem>
+                            <SelectItem value="number">Número</SelectItem>
+                            <SelectItem value="boolean">Verdadero/Falso</SelectItem>
+                            <SelectItem value="json">JSON</SelectItem>
+                            <SelectItem value="autoincremental">Autoincremental</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Categoría *</Label>
+                        <Select 
+                          value={editingVariable?.category} 
+                          onValueChange={(value) => setEditingVariable(prev => prev ? {...prev, category: value} : null)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="general">General</SelectItem>
+                            <SelectItem value="branding">Branding</SelectItem>
+                            <SelectItem value="security">Seguridad</SelectItem>
+                            <SelectItem value="notifications">Notificaciones</SelectItem>
+                            <SelectItem value="ui">Interfaz</SelectItem>
+                            <SelectItem value="integrations">Integraciones</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label>Valor por Defecto</Label>
+                        <Input
+                          value={editingVariable?.default_value || ''}
+                          onChange={(e) => setEditingVariable(prev => prev ? {...prev, default_value: e.target.value} : null)}
+                          placeholder="Valor inicial"
+                        />
+                      </div>
+
+                      {/* Autoincremental Config */}
+                      {editingVariable?.data_type === 'autoincremental' && (
+                        <div className="space-y-3 p-3 border rounded-lg bg-blue-50">
+                          <h4 className="font-medium text-sm">Configuración Autoincremental</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs">Sufijo *</Label>
+                              <Input
+                                value={editingVariable.config?.suffix || ''}
+                                onChange={(e) => setEditingVariable(prev => prev ? {
+                                  ...prev, 
+                                  config: {...(prev.config || {}), suffix: e.target.value}
+                                } : null)}
+                                placeholder="INV-"
+                                className="text-sm"
+                                required
+                              />
+                              {!editingVariable.config?.suffix && (
+                                <p className="text-xs text-red-500 mt-1">Sufijo es requerido</p>
+                              )}
+                            </div>
+                            <div>
+                              <Label className="text-xs">Dígitos *</Label>
+                              <Input
+                                type="number"
+                                value={editingVariable.config?.digits || 8}
+                                onChange={(e) => setEditingVariable(prev => prev ? {
+                                  ...prev, 
+                                  config: {...(prev.config || {}), digits: parseInt(e.target.value) || 8}
+                                } : null)}
+                                min="1"
+                                max="20"
+                                className="text-sm"
+                                required
+                              />
+                              {(!editingVariable.config?.digits || editingVariable.config.digits < 1 || editingVariable.config.digits > 20) && (
+                                <p className="text-xs text-red-500 mt-1">Debe ser entre 1 y 20</p>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-blue-600">
+                            Formato de ejemplo: {editingVariable.config?.suffix || 'XXX'}{'0'.repeat(Math.max(0, (editingVariable.config?.digits || 8) - 1))}1
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-2 text-sm">
+                          <Switch 
+                            checked={editingVariable?.is_required || false}
+                            onCheckedChange={(checked) => setEditingVariable(prev => prev ? {...prev, is_required: checked} : null)}
+                          />
+                          <span>Variable requerida</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-sm">
+                          <Switch 
+                            checked={editingVariable?.is_editable !== false}
+                            onCheckedChange={(checked) => setEditingVariable(prev => prev ? {...prev, is_editable: checked} : null)}
+                          />
+                          <span>Editable por organizaciones</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowVariableForm(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={editingVariable?.id ? handleUpdateVariable : handleCreateVariable}
+                      disabled={
+                        !editingVariable?.key || 
+                        !editingVariable?.name || 
+                        !editingVariable?.description ||
+                        (editingVariable?.data_type === 'autoincremental' && (
+                          !editingVariable?.config?.suffix || 
+                          !editingVariable?.config?.digits ||
+                          editingVariable?.config?.digits < 1 ||
+                          editingVariable?.config?.digits > 20
+                        ))
+                      }
+                    >
+                      {editingVariable?.id ? 'Actualizar' : 'Crear'} Variable
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
           )}
 
