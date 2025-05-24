@@ -63,7 +63,7 @@ export const THEME_PALETTES: Record<string, ThemePalette> = {
     light: {
       primary: "#2563eb",      // Azul principal
       secondary: "#64748b",    // Gris azulado
-      accent: "#0ea5e9",       // Azul claro
+      accent: "#497fef",       // Azul claro
       background: "#ffffff",   // Fondo blanco
       surface: "#f8fafc",      // Superficie gris muy claro
       text: "#1e293b",         // Texto oscuro

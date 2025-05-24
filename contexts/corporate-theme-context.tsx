@@ -124,38 +124,84 @@ export function CorporateThemeProvider({ children }: CorporateThemeProviderProps
     }
   };
 
-  // Función para convertir hex a oklch (simplificada para el ejemplo)
+  // Función para convertir hex a oklch con valores conocidos
   const hexToOklch = (hex: string): string => {
     // Quitar el # si existe
-    hex = hex.replace('#', '');
+    hex = hex.replace('#', '').toLowerCase();
     
-    // Convertir hex a RGB
+    // Mapeo directo para colores conocidos del tema corporativo
+    const knownColors: Record<string, string> = {
+      // Azul corporativo - primary
+      '2563eb': 'oklch(0.570 0.191 263.89)', // blue-600
+      '3b82f6': 'oklch(0.642 0.185 264.35)', // blue-500
+      // Azul corporativo - accent  
+      '0ea5e9': 'oklch(0.694 0.154 199.77)', // sky-500
+      '38bdf8': 'oklch(0.758 0.131 205.08)', // sky-400
+      '497fef': 'oklch(0.640 0.180 263.89)', // blue-500 variant
+      // Otros azules comunes
+      '1e40af': 'oklch(0.435 0.166 263.89)', // blue-800
+      '60a5fa': 'oklch(0.703 0.142 264.35)', // blue-400
+      '93c5fd': 'oklch(0.786 0.108 264.35)', // blue-300
+      // Grises y neutros
+      'ffffff': 'oklch(1 0 0)',
+      '000000': 'oklch(0 0 0)',
+      'f8fafc': 'oklch(0.985 0 0)',
+      '1e293b': 'oklch(0.205 0 0)',
+      '64748b': 'oklch(0.556 0 0)',
+      '94a3b8': 'oklch(0.708 0 0)',
+      'f1f5f9': 'oklch(0.985 0 0)',
+      'e2e8f0': 'oklch(0.922 0 0)',
+      '334155': 'oklch(0.269 0 0)',
+      '0f172a': 'oklch(0.145 0 0)',
+      // Verdes para success
+      '10b981': 'oklch(0.708 0.170 162.48)',
+      '22c55e': 'oklch(0.756 0.181 142.50)',
+      '0284c7': 'oklch(0.590 0.154 199.77)', // sky-600 para success azul
+      // Otros colores
+      'f59e0b': 'oklch(0.768 0.189 84.429)', // amber-500
+      'fbbf24': 'oklch(0.828 0.189 84.429)', // amber-400
+      'ef4444': 'oklch(0.627 0.265 27.325)', // red-500
+      'f87171': 'oklch(0.704 0.191 22.216)', // red-400
+      'dc2626': 'oklch(0.577 0.245 27.325)', // red-600
+    };
+    
+    // Si tenemos el color mapeado, usarlo directamente
+    if (knownColors[hex]) {
+      return knownColors[hex];
+    }
+    
+    // Conversión fallback mejorada para colores no mapeados
     const r = parseInt(hex.substr(0, 2), 16) / 255;
     const g = parseInt(hex.substr(2, 2), 16) / 255;
     const b = parseInt(hex.substr(4, 2), 16) / 255;
     
-    // Conversión simplificada a OKLCH (para colores básicos)
-    // En producción se recomienda usar una librería como culori
+    // Conversión RGB a Lab aproximada
     const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
     
-    // Mapeo aproximado a valores OKLCH
-    if (luminance > 0.9) return `oklch(${(luminance * 0.9 + 0.1).toFixed(3)} 0 0)`;
-    if (luminance < 0.1) return `oklch(${(luminance * 0.5 + 0.1).toFixed(3)} 0 0)`;
+    // Para grises (baja saturación)
+    if (Math.abs(r - g) < 0.1 && Math.abs(g - b) < 0.1 && Math.abs(b - r) < 0.1) {
+      return `oklch(${luminance.toFixed(3)} 0 0)`;
+    }
     
-    // Para colores con saturación
-    const chroma = Math.sqrt((r - g) ** 2 + (g - b) ** 2 + (b - r) ** 2) * 0.3;
+    // Estimación simple de chroma y hue
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const chroma = (max - min) * 0.15; // Reducir chroma para valores más conservadores
+    
     let hue = 0;
-    
     if (chroma > 0.01) {
-      // Calcular hue aproximado
-      if (r >= g && r >= b) hue = ((g - b) / chroma) * 60;
-      else if (g >= r && g >= b) hue = ((b - r) / chroma + 2) * 60;
-      else hue = ((r - g) / chroma + 4) * 60;
+      if (max === r) {
+        hue = ((g - b) / (max - min)) * 60;
+      } else if (max === g) {
+        hue = ((b - r) / (max - min) + 2) * 60;
+      } else {
+        hue = ((r - g) / (max - min) + 4) * 60;
+      }
       
       if (hue < 0) hue += 360;
     }
     
-    return `oklch(${luminance.toFixed(3)} ${chroma.toFixed(3)} ${hue.toFixed(1)})`;
+    return `oklch(${luminance.toFixed(3)} ${Math.min(chroma, 0.2).toFixed(3)} ${hue.toFixed(1)})`;
   };
 
   const applyThemeToDOM = () => {
