@@ -136,7 +136,11 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
   // Ya no necesitamos handleFormSuccess
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CL');
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
   };
 
   const formatExpirationDate = (expiresAt: string | null | undefined) => {
@@ -147,7 +151,11 @@ export default function OrganizationList({ onOrganizationSelect }: OrganizationL
     const isExpiringThisMonth = date > now && date <= new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
     
     return {
-      text: date.toLocaleDateString('es-CL'),
+      text: date.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }),
       isExpired,
       isExpiringThisMonth
     };

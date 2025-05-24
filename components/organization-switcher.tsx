@@ -67,12 +67,12 @@ export function OrganizationSwitcher() {
       <Button 
         variant="outline" 
         size="sm" 
-        className="w-[200px] justify-between"
+        className="w-[200px] justify-between px-3"
         onClick={() => setIsModalOpen(true)}
         disabled={isLoading}
       >
-        <div className="flex items-center space-x-2">
-          <div className="w-5 h-5 bg-primary/10 rounded flex items-center justify-center">
+        <div className="flex items-center space-x-2 min-w-0 flex-1">
+          <div className="w-5 h-5 bg-primary/10 rounded flex items-center justify-center flex-shrink-0">
             {currentOrganization?.logo ? (
               <img 
                 src={currentOrganization.logo} 
@@ -83,11 +83,11 @@ export function OrganizationSwitcher() {
               <Building2 className="w-3 h-3 text-primary" />
             )}
           </div>
-          <span className="truncate text-sm">
+          <span className="truncate text-sm min-w-0">
             {currentOrganization?.name || 'Seleccionar organización'}
           </span>
         </div>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 ml-1" />
       </Button>
 
       <OrganizationSelectorModal
