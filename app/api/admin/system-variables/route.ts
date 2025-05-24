@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       FROM system_variables sv
       LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
       WHERE sv.active = 1
-      ORDER BY vg.name NULLS LAST, sv.name
+      ORDER BY CASE WHEN vg.name IS NULL THEN 1 ELSE 0 END, vg.name, sv.name
     `);
 
     // Parse config JSON for each variable

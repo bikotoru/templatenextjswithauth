@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN organizations o ON vg.organization_id = o.id
       WHERE vg.active = 1
       GROUP BY vg.id, vg.name, vg.description, vg.organization_id, vg.active, vg.created_at, vg.updated_at, o.name
-      ORDER BY vg.organization_id NULLS FIRST, vg.name
+      ORDER BY CASE WHEN vg.organization_id IS NULL THEN 0 ELSE 1 END, vg.organization_id, vg.name
     `);
 
     return NextResponse.json(groups);

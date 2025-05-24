@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         AND vp_role.active = 1
       WHERE sv.active = 1
       AND (vp_user.can_view = 1 OR vp_role.can_view = 1)
-      ORDER BY vg.name NULLS LAST, sv.name
+      ORDER BY CASE WHEN vg.name IS NULL THEN 1 ELSE 0 END, vg.name, sv.name
     `, { user_id: user.id });
 
     // Get current values for each variable
