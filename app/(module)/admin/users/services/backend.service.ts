@@ -9,11 +9,11 @@ import {
   handleQueryError,
   handleQuerySuccess
 } from '@/utils/sql';
-import { hashPassword } from '@/utils/auth';
+import { hashPassword, UserSession } from '@/utils/auth';
 import { UserType, UserCreateRequest, UserUpdateRequest, UserSearchParams, UserListResponse } from '../types';
 
 export class UserBackendService {
-  static async getAll(params: UserSearchParams = {}): Promise<QueryResult<UserListResponse>> {
+  static async getAll(params: UserSearchParams = {}, user?: UserSession): Promise<QueryResult<UserListResponse>> {
     try {
       const {
         search = '',
@@ -25,6 +25,17 @@ export class UserBackendService {
         sortOrder = 'DESC'
       } = params;
 
+      // Verificar permisos de organización
+      const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+      
+      // Debug logging
+      console.log('🔍 UserBackendService.getAll Debug:', {
+        userRoles: user?.roles,
+        isSuperAdmin,
+        organizationId: user?.organizationId,
+        userId: user?.id
+      });
+      
       // Construir condiciones WHERE
       const conditions: Record<string, unknown> = {};
       if (active !== undefined) conditions['u.active'] = active;
@@ -35,19 +46,48 @@ export class UserBackendService {
       let additionalWhere = '';
       const additionalParams: Record<string, unknown> = {};
       
+      // Filtro por organización (solo para no Super Admin)
+      if (!isSuperAdmin && user?.organizationId) {
+        additionalWhere += (whereClause ? ' AND ' : 'WHERE ') + 
+          'EXISTS (SELECT 1 FROM user_organizations uo WHERE uo.user_id = u.id AND uo.organization_id = @organizationId AND uo.active = 1)';
+        additionalParams.organizationId = user.organizationId;
+        
+        console.log('🔍 Adding organization filter:', {
+          organizationId: user.organizationId,
+          whereClause,
+          additionalWhere
+        });
+      } else {
+        console.log('🔍 NOT adding organization filter:', {
+          isSuperAdmin,
+          hasOrganizationId: !!user?.organizationId
+        });
+      }
+      
       if (search) {
-        additionalWhere += (whereClause ? ' AND ' : 'WHERE ') + '(u.name LIKE @search OR u.email LIKE @search)';
+        additionalWhere += (whereClause || additionalWhere ? ' AND ' : (additionalWhere ? ' AND ' : 'WHERE ')) + '(u.name LIKE @search OR u.email LIKE @search)';
         additionalParams.search = `%${search}%`;
       }
       
       if (role) {
-        additionalWhere += (whereClause || additionalWhere ? ' AND ' : 'WHERE ') + 
-          'EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = u.id AND r.name = @role)';
+        additionalWhere += (whereClause || additionalWhere ? ' AND ' : (additionalWhere ? ' AND ' : 'WHERE ')) + 
+          'EXISTS (SELECT 1 FROM user_role_assignments ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = u.id AND r.name = @role' +
+          (!isSuperAdmin && user?.organizationId ? ' AND ur.organization_id = @roleOrgId' : '') + ')';
         additionalParams.role = role;
+        if (!isSuperAdmin && user?.organizationId) {
+          additionalParams.roleOrgId = user.organizationId;
+        }
       }
 
       const finalWhere = whereClause + additionalWhere;
       const allParams = { ...whereParams, ...additionalParams };
+      
+      console.log('🔍 Final query parts:', {
+        whereClause,
+        additionalWhere,
+        finalWhere,
+        allParams
+      });
 
       // Query para contar total de registros
       const countQuery = `
@@ -70,24 +110,27 @@ export class UserBackendService {
           u.name,
           u.avatar,
           u.active,
+          u.last_login,
           u.created_at,
           u.updated_at,
           STRING_AGG(r.name, ', ') as roles
         FROM users u
-        LEFT JOIN user_role_assignments ur ON u.id = ur.user_id
-        LEFT JOIN roles r ON ur.role_id = r.id
+        LEFT JOIN user_role_assignments ur ON u.id = ur.user_id ${!isSuperAdmin && user?.organizationId ? 'AND ur.organization_id = @organizationId AND ur.active = 1' : 'AND ur.active = 1'}
+        LEFT JOIN roles r ON ur.role_id = r.id AND r.active = 1
         ${finalWhere}
-        GROUP BY u.id, u.email, u.name, u.avatar, u.active, u.created_at, u.updated_at
+        GROUP BY u.id, u.email, u.name, u.avatar, u.active, u.last_login, u.created_at, u.updated_at
         ${orderBy}
         ${pagination}
       `;
 
+      console.log('🔍 Executing query:', query);
+      console.log('🔍 Query params:', allParams);
+      
       const users = await executeQuery<UserType & { roles: string }>(query, allParams);
 
       // Formatear datos
       const formattedUsers: UserType[] = users.map(user => ({
         ...user,
-        last_login: undefined, // Campo no disponible en multi-tenant schema
         roles: user.roles ? user.roles.split(', ') : [],
         permissions: [] // Se cargarán por separado si es necesario
       }));
@@ -151,7 +194,7 @@ export class UserBackendService {
 
       // Obtener permisos del usuario (directos + por roles)
       const permissionsQuery = `
-        SELECT p.id, p.name as permission_key
+        SELECT p.id, p.name
         FROM permissions p
         WHERE p.id IN (
           SELECT up.permission_id 
@@ -167,7 +210,7 @@ export class UserBackendService {
         )
         ORDER BY p.name
       `;
-      const permissions = await executeQuery<{ id: number; permission_key: string }>(permissionsQuery, { userId: id });
+      const permissions = await executeQuery<{ id: number; name: string }>(permissionsQuery, { userId: id });
 
       // Obtener role_ids directos del usuario
       const userRoleIdsQuery = `
@@ -188,7 +231,7 @@ export class UserBackendService {
       const userWithDetails: UserType = {
         ...user,
         roles: roles.map(r => r.name),
-        permissions: permissions.map(p => p.permission_key),
+        permissions: permissions.map(p => p.name),
         role_ids: userRoleIds.map(r => r.role_id),
         permission_ids: userPermissionIds.map(p => p.permission_id),
         inherited_permissions: inheritedPermissions.map(p => p.permission_id),
@@ -201,28 +244,66 @@ export class UserBackendService {
     }
   }
 
-  static async create(data: UserCreateRequest): Promise<QueryResult<UserType>> {
+  static async create(data: UserCreateRequest, user?: UserSession): Promise<QueryResult<UserType>> {
     try {
       return await executeTransaction(async (transaction) => {
         // Hash de la password
         const hashedPassword = await hashPassword(data.password);
 
+        // Verificar permisos de organización
+        const isSuperAdmin = user?.roles?.includes('Super Admin') || false;
+        const creatorOrganizationId = user?.organizationId;
+        
+        if (!isSuperAdmin && !creatorOrganizationId) {
+          throw new Error('Solo Super Admin puede crear usuarios sin organización específica');
+        }
+
+        // Verificar si el email ya existe
+        const checkEmailQuery = 'SELECT id FROM users WHERE email = @email';
+        const checkRequest = transaction.request();
+        checkRequest.input('email', data.email);
+        const existingUser = await checkRequest.query(checkEmailQuery);
+        
+        if (existingUser.recordset.length > 0) {
+          throw new Error(`El email "${data.email}" ya está registrado en el sistema`);
+        }
+
         // Insertar usuario
         const insertQuery = `
-          INSERT INTO users (email, password, name, avatar, active)
+          INSERT INTO users (email, password_hash, name, avatar, active, created_at, updated_at, created_by_id, updated_by_id)
           OUTPUT INSERTED.id, INSERTED.email, INSERTED.name, INSERTED.avatar, INSERTED.active, INSERTED.created_at, INSERTED.updated_at
-          VALUES (@email, @password, @name, @avatar, @active)
+          VALUES (@email, @password_hash, @name, @avatar, @active, GETDATE(), GETDATE(), @createdBy, @updatedBy)
         `;
 
         const request = transaction.request();
         request.input('email', data.email);
-        request.input('password', hashedPassword);
+        request.input('password_hash', hashedPassword);
         request.input('name', data.name);
         request.input('avatar', data.avatar || null);
         request.input('active', data.active !== false);
+        request.input('createdBy', user?.id || 1);
+        request.input('updatedBy', user?.id || 1);
 
         const result = await request.query(insertQuery);
         const newUser = result.recordset[0];
+
+        // Asignar usuario a organización (para no Super Admin, usar su organización)
+        const organizationToAssign = isSuperAdmin && data.organizationId ? data.organizationId : creatorOrganizationId;
+        
+        if (organizationToAssign) {
+          const assignOrgQuery = `
+            INSERT INTO user_organizations (user_id, organization_id, active, created_at, updated_at, created_by_id, updated_by_id)
+            VALUES (@userId, @organizationId, 1, GETDATE(), GETDATE(), @createdBy, @updatedBy)
+          `;
+          
+          const orgRequest = transaction.request();
+          orgRequest.input('userId', newUser.id);
+          orgRequest.input('organizationId', organizationToAssign);
+          orgRequest.input('createdBy', user?.id || 1);
+          orgRequest.input('updatedBy', user?.id || 1);
+          
+          await orgRequest.query(assignOrgQuery);
+        }
 
         // Asignar roles si se proporcionaron
         if (data.roleIds && data.roleIds.length > 0) {
@@ -230,7 +311,14 @@ export class UserBackendService {
             const roleRequest = transaction.request();
             roleRequest.input('userId', newUser.id);
             roleRequest.input('roleId', roleId);
-            await roleRequest.query('INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)');
+            roleRequest.input('organizationId', organizationToAssign);
+            roleRequest.input('createdBy', user?.id || 1);
+            roleRequest.input('updatedBy', user?.id || 1);
+            
+            await roleRequest.query(`
+              INSERT INTO user_role_assignments (user_id, role_id, organization_id, active, created_at, updated_at, created_by_id, updated_by_id) 
+              VALUES (@userId, @roleId, @organizationId, 1, GETDATE(), GETDATE(), @createdBy, @updatedBy)
+            `);
           }
         }
 
@@ -240,7 +328,14 @@ export class UserBackendService {
             const permRequest = transaction.request();
             permRequest.input('userId', newUser.id);
             permRequest.input('permissionId', permissionId);
-            await permRequest.query('INSERT INTO user_permission_assignments (user_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id) VALUES (@userId, @permissionId, (SELECT TOP 1 organization_id FROM user_organizations WHERE user_id = @userId), GETDATE(), 1, GETDATE(), GETDATE(), @userId)');
+            permRequest.input('organizationId', organizationToAssign);
+            permRequest.input('createdBy', user?.id || 1);
+            permRequest.input('updatedBy', user?.id || 1);
+            
+            await permRequest.query(`
+              INSERT INTO user_permission_assignments (user_id, permission_id, organization_id, active, created_at, updated_at, created_by_id, updated_by_id) 
+              VALUES (@userId, @permissionId, @organizationId, 1, GETDATE(), GETDATE(), @createdBy, @updatedBy)
+            `);
           }
         }
 
@@ -416,9 +511,9 @@ export class UserBackendService {
     }
   }
 
-  static async getPermissions(): Promise<QueryResult<{ id: number; permission_key: string; display_name: string; module: string }[]>> {
+  static async getPermissions(): Promise<QueryResult<{ id: number; name: string; description: string; category: string }[]>> {
     try {
-      const query = 'SELECT id, permission_key, display_name, module FROM permissions WHERE active = 1 ORDER BY module, display_name';
+      const query = 'SELECT id, name, description, category FROM permissions WHERE active = 1 ORDER BY category, name';
       const permissions = await executeQuery(query);
       return handleQuerySuccess(permissions);
     } catch (error) {

@@ -21,11 +21,14 @@ import {
   Shield,
   Key,
   Building2,
-  Settings,
   LogOut,
   Menu,
   ChevronDown,
-  Database,
+  Palette,
+  User,
+  UserCog,
+  Settings,
+  Cog,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -53,44 +56,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       url: '/dashboard',
       icon: Home,
       permission: 'dashboard:view',
-    },
-    {
-      title: 'Admin',
-      url: '/admin',
-      icon: Settings,
-      permission: 'admin:access',
-      subItems: [
-        {
-          title: 'Usuarios',
-          url: '/admin/users',
-          icon: Users,
-          permission: 'users:view',
-        },
-        {
-          title: 'Roles',
-          url: '/admin/roles',
-          icon: Shield,
-          permission: 'roles:view',
-        },
-        {
-          title: 'Permisos',
-          url: '/admin/permissions',
-          icon: Key,
-          permission: 'permissions:view',
-        },
-        {
-          title: 'Organizaciones',
-          url: '/admin/organizations',
-          icon: Building2,
-          permission: 'organizations:view_all',
-        },
-        {
-          title: 'Variables del Sistema',
-          url: '/admin/system-variables',
-          icon: Database,
-          permission: 'system_variables:view',
-        },
-      ],
     },
   ];
 
@@ -231,6 +196,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   {pathname.startsWith('/admin/users') && 'Gestión de Usuarios'}
                   {pathname.startsWith('/admin/roles') && 'Gestión de Roles'}
                   {pathname.startsWith('/admin/permissions') && 'Gestión de Permisos'}
+                  {pathname.startsWith('/admin/organizations') && 'Gestión de Organizaciones'}
+                  {pathname.startsWith('/admin/theme') && 'Configuración de Tema'}
+                  {pathname.startsWith('/admin/personalizacion') && 'Personalización'}
+                  {pathname.startsWith('/admin/variables') && 'Variables del Sistema'}
                 </h1>
                 {currentOrganization && (
                   <p className="text-sm text-muted-foreground">
@@ -270,6 +239,87 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  
+                  {/* Opciones de usuario */}
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/users" className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Mi Perfil</span>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+                  
+                  {/* Personalización */}
+                  <DropdownMenuLabel>Personalización</DropdownMenuLabel>
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/personalizacion" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Personalización</span>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {/* Administración */}
+                  {(hasPermission('admin:access') || hasPermission('variables:manage') || hasPermission('users:view') || hasPermission('roles:view') || hasPermission('permissions:view') || hasPermission('organizations:view_all')) && (
+                    <>
+                      <DropdownMenuLabel>
+                        <div className="flex items-center space-x-2">
+                          <UserCog className="h-4 w-4" />
+                          <span>Administración</span>
+                        </div>
+                      </DropdownMenuLabel>
+                      
+                      {hasPermission('variables:manage') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/variables" className="cursor-pointer">
+                            <Cog className="mr-2 h-4 w-4" />
+                            <span>Variables del Sistema</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {hasPermission('users:view') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/users" className="cursor-pointer">
+                            <Users className="mr-2 h-4 w-4" />
+                            <span>Usuarios</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {hasPermission('roles:view') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/roles" className="cursor-pointer">
+                            <Shield className="mr-2 h-4 w-4" />
+                            <span>Roles</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {hasPermission('permissions:view') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/permissions" className="cursor-pointer">
+                            <Key className="mr-2 h-4 w-4" />
+                            <span>Permisos</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {hasPermission('organizations:view_all') && (
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/organizations" className="cursor-pointer">
+                            <Building2 className="mr-2 h-4 w-4" />
+                            <span>Organizaciones</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Cerrar Sesión</span>

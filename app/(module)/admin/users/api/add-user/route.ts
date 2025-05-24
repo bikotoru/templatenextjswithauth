@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!user.currentOrganization?.id) {
+    if (!user.organizationId) {
       return NextResponse.json({ 
         success: false, 
         error: 'No hay organización activa' 
@@ -56,17 +56,13 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Verificar si ya está en la organización actual
-        if (!user.currentOrganization) {
-          throw new Error('No hay organización seleccionada');
-        }
-        
         const userInOrg = await executeQuerySingle<{ exists: number }>(
           `SELECT COUNT(*) as exists 
            FROM user_organizations 
            WHERE user_id = @userId AND organization_id = @orgId AND active = 1`,
           { 
             userId: existingUser.id, 
-            orgId: user.currentOrganization.id 
+            orgId: user.organizationId 
           }
         );
 
@@ -105,17 +101,17 @@ export async function POST(request: NextRequest) {
       // 4. Asignar usuario a la organización
       const assignOrgRequest = transaction.request();
       assignOrgRequest.input('userId', targetUserId);
-      assignOrgRequest.input('organizationId', user.currentOrganization!.id);
+      assignOrgRequest.input('organizationId', user.organizationId);
       assignOrgRequest.input('createdById', user.id);
       assignOrgRequest.input('updatedById', user.id);
 
       await assignOrgRequest.query(`
         INSERT INTO user_organizations (
-          user_id, organization_id, joined_at, active, 
+          user_id, organization_id, active, 
           created_at, updated_at, created_by_id, updated_by_id
         ) 
         VALUES (
-          @userId, @organizationId, GETDATE(), 1, 
+          @userId, @organizationId, 1, 
           GETDATE(), GETDATE(), @createdById, @updatedById
         )
       `);
@@ -126,17 +122,17 @@ export async function POST(request: NextRequest) {
           const assignRoleRequest = transaction.request();
           assignRoleRequest.input('userId', targetUserId);
           assignRoleRequest.input('roleId', roleId);
-          assignRoleRequest.input('organizationId', user.currentOrganization!.id);
+          assignRoleRequest.input('organizationId', user.organizationId);
           assignRoleRequest.input('createdById', user.id);
           assignRoleRequest.input('updatedById', user.id);
 
           await assignRoleRequest.query(`
             INSERT INTO user_role_assignments (
-              user_id, role_id, organization_id, assigned_at, active,
+              user_id, role_id, organization_id, active,
               created_at, updated_at, created_by_id, updated_by_id
             ) 
             VALUES (
-              @userId, @roleId, @organizationId, GETDATE(), 1,
+              @userId, @roleId, @organizationId, 1,
               GETDATE(), GETDATE(), @createdById, @updatedById
             )
           `);
@@ -149,17 +145,17 @@ export async function POST(request: NextRequest) {
           const assignPermRequest = transaction.request();
           assignPermRequest.input('userId', targetUserId);
           assignPermRequest.input('permissionId', permissionId);
-          assignPermRequest.input('organizationId', user.currentOrganization!.id);
+          assignPermRequest.input('organizationId', user.organizationId);
           assignPermRequest.input('createdById', user.id);
           assignPermRequest.input('updatedById', user.id);
 
           await assignPermRequest.query(`
             INSERT INTO user_permission_assignments (
-              user_id, permission_id, organization_id, assigned_at, active,
+              user_id, permission_id, organization_id, active,
               created_at, updated_at, created_by_id, updated_by_id
             ) 
             VALUES (
-              @userId, @permissionId, @organizationId, GETDATE(), 1,
+              @userId, @permissionId, @organizationId, 1,
               GETDATE(), GETDATE(), @createdById, @updatedById
             )
           `);
@@ -169,10 +165,10 @@ export async function POST(request: NextRequest) {
       // 7. Registrar actividad
       const logActivityRequest = transaction.request();
       logActivityRequest.input('userId', user.id);
-      logActivityRequest.input('organizationId', user.currentOrganization!.id);
+      logActivityRequest.input('organizationId', user.organizationId);
       logActivityRequest.input('action', isNewUser ? 'CREATE_USER' : 'ASSIGN_USER');
-      logActivityRequest.input('resourceType', 'USER');
-      logActivityRequest.input('resourceId', targetUserId.toString());
+      logActivityRequest.input('entityType', 'USER');
+      logActivityRequest.input('entityId', targetUserId.toString());
       logActivityRequest.input('details', JSON.stringify({
         email: body.email,
         name: body.name,
@@ -185,11 +181,11 @@ export async function POST(request: NextRequest) {
 
       await logActivityRequest.query(`
         INSERT INTO activity_logs (
-          user_id, organization_id, action, resource_type, resource_id, details,
+          user_id, organization_id, action, entity_type, entity_id, details,
           created_at, updated_at, created_by_id, updated_by_id
         ) 
         VALUES (
-          @userId, @organizationId, @action, @resourceType, @resourceId, @details,
+          @userId, @organizationId, @action, @entityType, @entityId, @details,
           GETDATE(), GETDATE(), @createdById, @updatedById
         )
       `);

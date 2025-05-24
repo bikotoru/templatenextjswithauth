@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in POST /api/admin/organizations:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack available');
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Error al crear organización',

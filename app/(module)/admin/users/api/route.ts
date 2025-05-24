@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       sortOrder: (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'DESC',
     };
 
-    const result = await UserBackendService.getAll(params);
+    const result = await UserBackendService.getAll(params, user);
     
     if (!result.success) {
       return NextResponse.json(result, { status: 500 });
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await UserBackendService.create(userData);
+    const result = await UserBackendService.create(userData, user);
     
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

@@ -112,6 +112,113 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Variables CSS para temas corporativos dinámicos */
+:root {
+  /* Colores corporativos por defecto (serán sobrescritos dinámicamente) */
+  --corporate-primary: #2563eb;
+  --corporate-secondary: #64748b;
+  --corporate-accent: #0ea5e9;
+  --corporate-background: #ffffff;
+  --corporate-surface: #f8fafc;
+  --corporate-text: #1e293b;
+  --corporate-textSecondary: #64748b;
+  --corporate-border: #e2e8f0;
+  --corporate-success: #10b981;
+  --corporate-warning: #f59e0b;
+  --corporate-error: #ef4444;
+}
+
+/* Clases utilitarias para usar colores corporativos */
+.corporate-bg-primary {
+  background-color: var(--corporate-primary);
+}
+
+.corporate-text-primary {
+  color: var(--corporate-primary);
+}
+
+.corporate-border-primary {
+  border-color: var(--corporate-primary);
+}
+
+.corporate-bg-secondary {
+  background-color: var(--corporate-secondary);
+}
+
+.corporate-text-secondary {
+  color: var(--corporate-secondary);
+}
+
+.corporate-bg-accent {
+  background-color: var(--corporate-accent);
+}
+
+.corporate-text-accent {
+  color: var(--corporate-accent);
+}
+
+.corporate-bg-surface {
+  background-color: var(--corporate-surface);
+}
+
+.corporate-bg-background {
+  background-color: var(--corporate-background);
+}
+
+.corporate-text-main {
+  color: var(--corporate-text);
+}
+
+.corporate-text-secondary-color {
+  color: var(--corporate-textSecondary);
+}
+
+.corporate-border-default {
+  border-color: var(--corporate-border);
+}
+
+.corporate-text-success {
+  color: var(--corporate-success);
+}
+
+.corporate-bg-success {
+  background-color: var(--corporate-success);
+}
+
+.corporate-text-warning {
+  color: var(--corporate-warning);
+}
+
+.corporate-bg-warning {
+  background-color: var(--corporate-warning);
+}
+
+.corporate-text-error {
+  color: var(--corporate-error);
+}
+
+.corporate-bg-error {
+  background-color: var(--corporate-error);
+}
+
+/* Sobrescribir algunos colores de shadcn con colores corporativos cuando esté activo */
+.corporate-theme {
+  --primary: var(--corporate-primary);
+  --secondary: var(--corporate-secondary);
+  --accent: var(--corporate-accent);
+  --background: var(--corporate-background);
+  --card: var(--corporate-surface);
+  --border: var(--corporate-border);
+  --foreground: var(--corporate-text);
+  --muted-foreground: var(--corporate-textSecondary);
+  --destructive: var(--corporate-error);
+}
+
+/* Transiciones suaves para cambios de tema */
+:root {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

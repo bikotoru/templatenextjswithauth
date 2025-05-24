@@ -199,10 +199,7 @@ export class OrganizationBackendService {
         const existingOrg = await checkOrgNameRequest.query(checkOrgNameQuery);
         
         if (existingOrg.recordset.length > 0) {
-          return {
-            success: false,
-            error: `Ya existe una organización con el nombre "${data.name}". Por favor, use un nombre diferente.`
-          };
+          throw new Error(`Ya existe una organización con el nombre "${data.name}". Por favor, use un nombre diferente.`);
         }
 
         // Insertar organización
@@ -239,10 +236,7 @@ export class OrganizationBackendService {
           const existingUser = await checkEmailRequest.query(checkEmailQuery);
           
           if (existingUser.recordset.length > 0) {
-            return {
-              success: false,
-              error: `El email "${data.adminUser.newUser.email}" ya está registrado en el sistema. Por favor, use un email diferente o seleccione el usuario existente.`
-            };
+            throw new Error(`El email "${data.adminUser.newUser.email}" ya está registrado en el sistema. Por favor, use un email diferente o seleccione el usuario existente.`);
           }
 
           // Crear nuevo usuario
@@ -274,18 +268,12 @@ export class OrganizationBackendService {
           const existingUserResult = await checkUserRequest.query(checkUserQuery);
           
           if (existingUserResult.recordset.length === 0) {
-            return {
-              success: false,
-              error: 'El usuario seleccionado no existe en el sistema.'
-            };
+            throw new Error('El usuario seleccionado no existe en el sistema.');
           }
           
           const existingUserData = existingUserResult.recordset[0];
           if (!existingUserData.active) {
-            return {
-              success: false,
-              error: `El usuario "${existingUserData.name}" (${existingUserData.email}) está desactivado y no puede ser asignado como administrador.`
-            };
+            throw new Error(`El usuario "${existingUserData.name}" (${existingUserData.email}) está desactivado y no puede ser asignado como administrador.`);
           }
           
           adminUserId = data.adminUser.existingUserId;
@@ -293,38 +281,61 @@ export class OrganizationBackendService {
           throw new Error('Configuración de administrador inválida');
         }
 
-        // Crear permisos básicos para la organización
+        // Crear permisos básicos para el administrador de la organización
         const basicPermissions = [
+          // Admin general
           { name: 'admin:access', description: 'Acceso al panel de administración', category: 'admin' },
           { name: 'dashboard:view', description: 'Ver dashboard', category: 'dashboard' },
+          
+          // Users - Administración completa
           { name: 'users:view', description: 'Ver usuarios', category: 'users' },
           { name: 'users:create', description: 'Crear usuarios', category: 'users' },
           { name: 'users:edit', description: 'Editar usuarios', category: 'users' },
           { name: 'users:delete', description: 'Eliminar usuarios', category: 'users' },
+          { name: 'users:manage_roles', description: 'Gestionar roles de usuarios', category: 'users' },
+          { name: 'users:change_password', description: 'Cambiar contraseñas de usuarios', category: 'users' },
+          
+          // Roles - Administración completa
           { name: 'roles:view', description: 'Ver roles', category: 'roles' },
           { name: 'roles:create', description: 'Crear roles', category: 'roles' },
           { name: 'roles:edit', description: 'Editar roles', category: 'roles' },
           { name: 'roles:delete', description: 'Eliminar roles', category: 'roles' },
+          { name: 'roles:manage_permissions', description: 'Gestionar permisos de roles', category: 'roles' },
+          
+          // Permissions
           { name: 'permissions:view', description: 'Ver permisos', category: 'permissions' },
+          
+          // Organizations
+          { name: 'organizations:view', description: 'Ver organizaciones propias', category: 'organizations' },
+          
+          // Themes
+          { name: 'themes:view', description: 'Ver configuración de temas corporativos', category: 'themes' },
+          { name: 'themes:manage', description: 'Gestionar temas corporativos', category: 'themes' },
+          
+          // Organization Settings
+          { name: 'org_settings:view', description: 'Ver configuración de organización', category: 'org_settings' },
+          { name: 'org_settings:edit', description: 'Editar configuración de organización', category: 'org_settings' },
+          
+          // Organization Variables
+          { name: 'org_variables:view', description: 'Ver variables de organización', category: 'org_variables' },
+          { name: 'org_variables:edit', description: 'Editar variables de organización', category: 'org_variables' },
         ];
 
+        // Los permisos son globales, no por organización, así que obtenemos los IDs de los permisos existentes
         const permissionIds: number[] = [];
         for (const permission of basicPermissions) {
-          const insertPermQuery = `
-            INSERT INTO permissions (name, description, category, organization_id, system_hidden, active, created_at, updated_at, created_by_id, updated_by_id)
-            OUTPUT INSERTED.id
-            VALUES (@name, @description, @category, @organizationId, 0, 1, GETDATE(), GETDATE(), @userId, @userId)
+          // Buscar el permiso existente
+          const existingPermQuery = `
+            SELECT id FROM permissions WHERE name = @name AND active = 1
           `;
 
           const permRequest = transaction.request();
           permRequest.input('name', permission.name);
-          permRequest.input('description', permission.description);
-          permRequest.input('category', permission.category);
-          permRequest.input('organizationId', newOrganization.id);
-          permRequest.input('userId', user.id);
 
-          const permResult = await permRequest.query(insertPermQuery);
-          permissionIds.push(permResult.recordset[0].id);
+          const permResult = await permRequest.query(existingPermQuery);
+          if (permResult.recordset.length > 0) {
+            permissionIds.push(permResult.recordset[0].id);
+          }
         }
 
         // Crear rol Admin para la organización
@@ -347,14 +358,13 @@ export class OrganizationBackendService {
         // Asignar todos los permisos al rol Admin
         for (const permissionId of permissionIds) {
           const insertRolePermQuery = `
-            INSERT INTO role_permission_assignments (role_id, permission_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-            VALUES (@roleId, @permissionId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+            INSERT INTO role_permission_assignments (role_id, permission_id, active, created_at, updated_at, created_by_id, updated_by_id)
+            VALUES (@roleId, @permissionId, 1, GETDATE(), GETDATE(), @userId, @userId)
           `;
 
           const rolePermRequest = transaction.request();
           rolePermRequest.input('roleId', adminRoleId);
           rolePermRequest.input('permissionId', permissionId);
-          rolePermRequest.input('organizationId', newOrganization.id);
           rolePermRequest.input('userId', user.id);
 
           await rolePermRequest.query(insertRolePermQuery);
@@ -375,8 +385,8 @@ export class OrganizationBackendService {
         if (existingUserOrg.recordset.length === 0) {
           // Asignar el usuario administrador a la organización
           const insertUserOrgQuery = `
-            INSERT INTO user_organizations (user_id, organization_id, joined_at, active, created_at, updated_at, created_by_id, updated_by_id)
-            VALUES (@adminUserId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+            INSERT INTO user_organizations (user_id, organization_id, active, created_at, updated_at, created_by_id, updated_by_id)
+            VALUES (@adminUserId, @organizationId, 1, GETDATE(), GETDATE(), @userId, @userId)
           `;
 
           const userOrgRequest = transaction.request();
@@ -389,8 +399,8 @@ export class OrganizationBackendService {
 
         // Asignar el rol Admin al usuario administrador
         const insertUserRoleQuery = `
-          INSERT INTO user_role_assignments (user_id, role_id, organization_id, assigned_at, active, created_at, updated_at, created_by_id, updated_by_id)
-          VALUES (@adminUserId, @roleId, @organizationId, GETDATE(), 1, GETDATE(), GETDATE(), @userId, @userId)
+          INSERT INTO user_role_assignments (user_id, role_id, organization_id, active, created_at, updated_at, created_by_id, updated_by_id)
+          VALUES (@adminUserId, @roleId, @organizationId, 1, GETDATE(), GETDATE(), @userId, @userId)
         `;
 
         const userRoleRequest = transaction.request();
@@ -407,6 +417,8 @@ export class OrganizationBackendService {
           userCount: 1
         };
       });
+
+      return handleQuerySuccess(result);
     } catch (error) {
       return handleQueryError(error);
     }
@@ -604,7 +616,7 @@ export class OrganizationBackendService {
           u.active,
           u.created_at,
           u.updated_at,
-          uo.joined_at,
+          uo.created_at as joined_at,
           STUFF((
             SELECT ', ' + r.name
             FROM user_role_assignments ura
@@ -616,7 +628,7 @@ export class OrganizationBackendService {
         INNER JOIN user_organizations uo ON u.id = uo.user_id
         WHERE uo.organization_id = @organizationId 
           AND uo.active = 1
-        ORDER BY uo.joined_at DESC
+        ORDER BY uo.created_at DESC
       `;
 
       const users = await executeQuery<Record<string, unknown>>(query, { organizationId });
@@ -669,8 +681,8 @@ export class OrganizationBackendService {
 
         // Insertar nueva relación
         const insertQuery = `
-          INSERT INTO user_organizations (user_id, organization_id, joined_at, created_at, updated_at, created_by_id, updated_by_id)
-          VALUES (@userId, @organizationId, GETDATE(), GETDATE(), GETDATE(), @currentUserId, @currentUserId)
+          INSERT INTO user_organizations (user_id, organization_id, created_at, updated_at, created_by_id, updated_by_id)
+          VALUES (@userId, @organizationId, GETDATE(), GETDATE(), @currentUserId, @currentUserId)
         `;
 
         await request.query(insertQuery);

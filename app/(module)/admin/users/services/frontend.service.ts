@@ -219,7 +219,7 @@ export class UserFrontendService {
     permissionIds?: number[];
     temporaryPassword?: string;
   }): Promise<{ userId: number; isNewUser: boolean; temporaryPassword?: string }> {
-    const response = await fetch('/api/admin/users/add-user', {
+    const response = await fetch('/admin/users/api/add-user', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -15,6 +15,7 @@ export interface UserSession {
   email: string;
   name: string;
   avatar?: string;
+  organizationId?: string;
   permissions: string[];
   roles: string[];
   organizations?: Organization[];
@@ -114,14 +115,13 @@ class AuthService {
            ORDER BY name`
         );
       } else {
-        // Para usuarios normales: solo permisos de la organización actual
+        // Para usuarios normales: permisos basados en roles y asignaciones directas en la organización
         permissions = await executeQuery<{ name: string }>(
           `SELECT DISTINCT p.name
            FROM permissions p
-           WHERE p.organization_id = @organizationId
-           AND p.active = 1
+           WHERE p.active = 1
            AND p.id IN (
-             -- Permisos directos
+             -- Permisos directos asignados al usuario en esta organización
              SELECT up.permission_id 
              FROM user_permission_assignments up 
              WHERE up.user_id = @userId 
@@ -130,7 +130,7 @@ class AuthService {
              
              UNION
              
-             -- Permisos por roles
+             -- Permisos por roles asignados al usuario en esta organización
              SELECT rp.permission_id 
              FROM role_permission_assignments rp
              INNER JOIN user_role_assignments ur ON rp.role_id = ur.role_id
@@ -598,6 +598,7 @@ async login(credentials: LoginCredentials): Promise<AuthResult> {
         email: user.email,
         name: user.name,
         avatar: user.avatar,
+        organizationId: sessionData.organization_id,
         permissions,
         roles,
         currentOrganization: currentOrganization ? {

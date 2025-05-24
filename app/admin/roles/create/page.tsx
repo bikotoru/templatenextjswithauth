@@ -116,9 +116,11 @@ export default function CreateRolePage() {
     setSelectedUsers(newSelectedUsers);
   };
 
-  const handleAddUsers = () => {
-    setShowUserModal(false);
-  };
+  // Función para cerrar modal de usuarios
+  // const handleAddUsers = () => {
+  //   setShowUserModal(false);
+  //   toast.success(`${selectedUsers.size} usuarios agregados al rol`);
+  // };
 
   const handlePermissionToggle = (permissionId: number, isChecked: boolean) => {
     const newSelectedPermissions = new Set(selectedPermissions);

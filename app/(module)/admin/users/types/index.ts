@@ -76,10 +76,10 @@ export interface RoleType {
 
 export interface PermissionType {
   id: number;
-  permission_key: string;
-  display_name: string;
+  name: string;
   description?: string;
-  module: string;
+  category: string;
+  system_hidden: boolean;
   active: boolean;
   created_at: Date;
   updated_at: Date;

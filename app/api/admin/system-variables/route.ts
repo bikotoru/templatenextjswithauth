@@ -1,138 +1,144 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthFromRequest, hasPermission } from '@/utils/auth';
-import { SystemVariableBackendService } from '@/app/(module)/admin/system-variables/services/backend.service';
-import { CreateVariableRequest, VariableSearchParams, VariableCategory, VariableType } from '@/app/(module)/admin/system-variables/types';
+import { executeQuery } from '@/utils/sql';
+import { verifyAuthFromRequest } from '@/utils/auth';
 
-// GET /api/admin/system-variables - Obtener todas las variables
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 System Variables API - Starting auth verification');
     const user = await verifyAuthFromRequest(request);
-    console.log('🔍 System Variables API - User result:', user ? 'Found' : 'Not found');
-    
     if (!user) {
-      console.log('🔍 System Variables API - No user, returning 401');
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
     }
 
-    if (!(await hasPermission(user.id, 'system_variables:view'))) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para ver variables del sistema' },
-        { status: 403 }
-      );
+    // Check permission
+    if (!user.permissions.includes('system_variables:view')) {
+      return NextResponse.json({ message: 'Sin permisos para ver variables del sistema' }, { status: 403 });
     }
 
-    if (!user.currentOrganization) {
-      console.error('No currentOrganization in user object:', {
-        userId: user.id,
-        userKeys: Object.keys(user),
-        currentOrganization: user.currentOrganization
-      });
-      return NextResponse.json(
-        { success: false, error: 'No hay organización seleccionada' },
-        { status: 400 }
-      );
-    }
-
-    // Obtener parámetros de búsqueda
-    const searchParams = request.nextUrl.searchParams;
-    const params: VariableSearchParams = {
-      search: searchParams.get('search') || undefined,
-      category: (searchParams.get('category') as VariableCategory) || undefined,
-      variable_type: (searchParams.get('variable_type') as VariableType) || undefined,
-      is_active: searchParams.get('is_active') ? searchParams.get('is_active') === 'true' : undefined,
-      page: searchParams.get('page') ? parseInt(searchParams.get('page')!) : undefined,
-      pageSize: searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize')!) : undefined,
-      sortBy: searchParams.get('sortBy') || undefined,
-      sortOrder: searchParams.get('sortOrder') as 'ASC' | 'DESC' || undefined,
-    };
-
-    const result = await SystemVariableBackendService.getAll(
-      user.currentOrganization.id,
-      params,
-      user
+    // Get all system variables
+    const variables = await executeQuery(
+      `SELECT 
+        id,
+        [key],
+        name,
+        description,
+        default_value,
+        data_type,
+        category,
+        is_required,
+        is_editable,
+        config,
+        created_at,
+        updated_at
+      FROM system_variables 
+      ORDER BY category, name`
     );
 
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        data: result.data
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 500 }
-      );
-    }
+    // Parse config JSON for each variable
+    const parsedVariables = variables.map(v => ({
+      ...v,
+      config: v.config ? (typeof v.config === 'string' ? JSON.parse(v.config) : v.config) : {}
+    }));
+
+    return NextResponse.json(parsedVariables);
   } catch (error) {
-    console.error('Error in GET /api/admin/system-variables:', error);
+    console.error('Error fetching system variables:', error);
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      { message: 'Error interno del servidor' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/admin/system-variables - Crear nueva variable
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyAuthFromRequest(request);
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
     }
 
-    if (!(await hasPermission(user.id, 'system_variables:create'))) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para crear variables del sistema' },
-        { status: 403 }
-      );
+    // Check permission
+    if (!user.permissions.includes('system_variables:create')) {
+      return NextResponse.json({ message: 'Sin permisos para crear variables del sistema' }, { status: 403 });
     }
 
-    if (!user.currentOrganization) {
-      console.error('No currentOrganization in user object:', {
-        userId: user.id,
-        userKeys: Object.keys(user),
-        currentOrganization: user.currentOrganization
-      });
+    const body = await request.json();
+    const { key, name, description, default_value, data_type, category, is_required, is_editable, config } = body;
+
+    // Validate required fields
+    if (!key || !name || !description || !data_type || !category) {
       return NextResponse.json(
-        { success: false, error: 'No hay organización seleccionada' },
+        { message: 'Todos los campos requeridos deben ser proporcionados' },
         { status: 400 }
       );
     }
 
-    const body: CreateVariableRequest = await request.json();
-
-    // Validaciones básicas
-    if (!body.variable_key || !body.display_name || !body.variable_type) {
+    // Validate data_type
+    const validDataTypes = ['string', 'number', 'boolean', 'json'];
+    if (!validDataTypes.includes(data_type)) {
       return NextResponse.json(
-        { success: false, error: 'Faltan campos requeridos' },
+        { message: 'Tipo de dato inválido' },
         { status: 400 }
       );
     }
 
-    const result = await SystemVariableBackendService.create(body, user);
+    // Check if key already exists
+    const existingVariable = await executeQuery(
+      'SELECT id FROM system_variables WHERE [key] = @key',
+      { key }
+    );
 
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        data: result.data
-      }, { status: 201 });
-    } else {
+    if (existingVariable.length > 0) {
       return NextResponse.json(
-        { success: false, error: result.error },
+        { message: 'Ya existe una variable con esa clave' },
         { status: 400 }
       );
     }
+
+    // Create the variable
+    await executeQuery(
+      `INSERT INTO system_variables (
+        [key], name, description, default_value, data_type, category, is_required, is_editable, config,
+        created_by, updated_by
+      )
+      VALUES (
+        @key, @name, @description, @default_value, @data_type, @category, 
+        @is_required, @is_editable, @config, @created_by, @updated_by
+      )`,
+      {
+        key,
+        name,
+        description,
+        default_value: default_value || '',
+        data_type,
+        category,
+        is_required: is_required || false,
+        is_editable: is_editable !== false,
+        config: config ? JSON.stringify(config) : null,
+        created_by: user.id,
+        updated_by: user.id
+      }
+    );
+
+    // Get the created variable
+    const createdVariable = await executeQuery(
+      `SELECT 
+        id, [key], name, description, default_value, data_type, category, 
+        is_required, is_editable, config, created_at, updated_at
+      FROM system_variables 
+      WHERE [key] = @key`,
+      { key }
+    );
+
+    const result = {
+      ...createdVariable[0],
+      config: createdVariable[0].config ? (typeof createdVariable[0].config === 'string' ? JSON.parse(createdVariable[0].config) : createdVariable[0].config) : {}
+    };
+
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error('Error in POST /api/admin/system-variables:', error);
+    console.error('Error creating system variable:', error);
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      { message: 'Error interno del servidor' },
       { status: 500 }
     );
   }
