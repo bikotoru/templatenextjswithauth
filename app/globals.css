@@ -360,6 +360,43 @@
   font-weight: 600;
 }
 
+/* Estilos específicos para el sidebar corporativo - hover con texto blanco */
+.corporate-theme .sidebar *[data-sidebar="menu-button"]:hover,
+.corporate-theme .sidebar .hover\:bg-sidebar-accent:hover,
+.corporate-theme .sidebar [role="menuitem"]:hover {
+  background-color: var(--corporate-primary) !important;
+  color: white !important;
+}
+
+.corporate-theme .sidebar *[data-sidebar="menu-button"]:hover *,
+.corporate-theme .sidebar .hover\:bg-sidebar-accent:hover *,
+.corporate-theme .sidebar [role="menuitem"]:hover * {
+  color: white !important;
+}
+
+/* Para elementos específicos del sidebar con hover */
+.corporate-theme .sidebar a:hover,
+.corporate-theme .sidebar button:hover {
+  color: white !important;
+}
+
+.corporate-theme .sidebar a:hover span,
+.corporate-theme .sidebar button:hover span,
+.corporate-theme .sidebar a:hover svg,
+.corporate-theme .sidebar button:hover svg {
+  color: white !important;
+}
+
+/* Sobrescribir SidebarMenuButton hover */
+.corporate-theme [data-sidebar="menu-button"]:hover {
+  background-color: var(--corporate-primary) !important;
+  color: white !important;
+}
+
+.corporate-theme [data-sidebar="menu-button"]:hover * {
+  color: white !important;
+}
+
 /* Transiciones suaves para cambios de tema */
 :root {
   transition: background-color 0.3s ease, color 0.3s ease;
