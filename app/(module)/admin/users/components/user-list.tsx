@@ -36,8 +36,6 @@ import {
   Search, 
   Edit, 
   Trash2, 
-  Shield,
-  Key,
   Lock,
   UserPlus,
   Loader2
@@ -269,19 +267,7 @@ export default function UserList({ onUserSelect, onUserEdit }: UserListProps) {
                             Editar
                           </DropdownMenuItem>
                         )}
-                        {hasPermission('users:manage_roles') && (
-                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-                            <Shield className="mr-2 h-4 w-4" />
-                            Gestionar Roles
-                          </DropdownMenuItem>
-                        )}
-                        {hasPermission('users:manage_permissions') && (
-                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-                            <Key className="mr-2 h-4 w-4" />
-                            Gestionar Permisos
-                          </DropdownMenuItem>
-                        )}
-                        {hasPermission('users:edit') && (
+                        {hasPermission('users:change_password') && (
                           <DropdownMenuItem onClick={(e) => {
                             e.stopPropagation();
                             setSelectedUserForPassword({ id: user.id, email: user.email });

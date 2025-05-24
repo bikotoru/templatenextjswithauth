@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Dialog, 
   DialogContent, 
@@ -17,7 +16,6 @@ import {
   DialogTitle 
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -30,24 +28,18 @@ interface UserFormProps {
 
 export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFormProps) {
   const [loading, setLoading] = useState(false);
-  const [roles, setRoles] = useState<{ id: number; name: string; description?: string }[]>([]);
-  const [permissions, setPermissions] = useState<{ id: number; permission_key: string; display_name: string; module: string }[]>([]);
-  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
     avatar: '',
     active: true,
-    selectedRoles: new Set<number>(),
-    selectedPermissions: new Set<number>(),
   });
 
   const isEditing = !!user;
 
   useEffect(() => {
     if (open) {
-      fetchRolesAndPermissions();
       if (user) {
         setFormData({
           email: user.email,
@@ -55,10 +47,7 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
           name: user.name,
           avatar: user.avatar || '',
           active: user.active,
-          selectedRoles: new Set(),
-          selectedPermissions: new Set(),
         });
-        // TODO: Load user's current roles and permissions
       } else {
         setFormData({
           email: '',
@@ -66,26 +55,11 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
           name: '',
           avatar: '',
           active: true,
-          selectedRoles: new Set(),
-          selectedPermissions: new Set(),
         });
       }
     }
   }, [open, user]);
 
-  const fetchRolesAndPermissions = async () => {
-    try {
-      const [rolesData, permissionsData] = await Promise.all([
-        UserFrontendService.getRoles(),
-        UserFrontendService.getPermissions()
-      ]);
-      setRoles(rolesData);
-      setPermissions(permissionsData);
-    } catch (error) {
-      console.error('Error fetching roles and permissions:', error);
-      toast.error('Error al cargar roles y permisos');
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,15 +79,6 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
         }
 
         await UserFrontendService.update(user.id, updateData);
-        
-        // Update roles and permissions
-        if (formData.selectedRoles.size > 0) {
-          await UserFrontendService.assignRoles(user.id, Array.from(formData.selectedRoles));
-        }
-        if (formData.selectedPermissions.size > 0) {
-          await UserFrontendService.assignPermissions(user.id, Array.from(formData.selectedPermissions));
-        }
-
         toast.success('Usuario actualizado exitosamente');
       } else {
         const createData: UserCreateRequest = {
@@ -122,8 +87,6 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
           name: formData.name,
           avatar: formData.avatar || undefined,
           active: formData.active,
-          roleIds: Array.from(formData.selectedRoles),
-          permissionIds: Array.from(formData.selectedPermissions),
         };
 
         await UserFrontendService.create(createData);
@@ -140,34 +103,6 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
     }
   };
 
-  const handleRoleChange = (roleId: number, checked: boolean) => {
-    const newRoles = new Set(formData.selectedRoles);
-    if (checked) {
-      newRoles.add(roleId);
-    } else {
-      newRoles.delete(roleId);
-    }
-    setFormData({ ...formData, selectedRoles: newRoles });
-  };
-
-  const handlePermissionChange = (permissionId: number, checked: boolean) => {
-    const newPermissions = new Set(formData.selectedPermissions);
-    if (checked) {
-      newPermissions.add(permissionId);
-    } else {
-      newPermissions.delete(permissionId);
-    }
-    setFormData({ ...formData, selectedPermissions: newPermissions });
-  };
-
-  // Group permissions by module
-  const permissionsByModule = permissions.reduce((acc, permission) => {
-    if (!acc[permission.module]) {
-      acc[permission.module] = [];
-    }
-    acc[permission.module].push(permission);
-    return acc;
-  }, {} as Record<string, typeof permissions>);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -246,72 +181,6 @@ export default function UserForm({ user, open, onOpenChange, onSuccess }: UserFo
                 </div>
               </div>
 
-              <Separator />
-
-              {/* Roles */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Roles</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {roles.map((role) => (
-                    <div key={role.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`role-${role.id}`}
-                        checked={formData.selectedRoles.has(role.id)}
-                        onCheckedChange={(checked) => handleRoleChange(role.id, checked as boolean)}
-                      />
-                      <Label 
-                        htmlFor={`role-${role.id}`} 
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {role.name}
-                        {role.description && (
-                          <span className="text-xs text-muted-foreground block">
-                            {role.description}
-                          </span>
-                        )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Permissions */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Permisos Directos</h3>
-                <p className="text-sm text-muted-foreground">
-                  Estos permisos se asignan directamente al usuario, además de los permisos heredados por roles.
-                </p>
-                
-                {Object.entries(permissionsByModule).map(([module, modulePermissions]) => (
-                  <div key={module} className="space-y-2">
-                    <h4 className="text-sm font-medium text-muted-foreground uppercase">
-                      {module}
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2 pl-4">
-                      {modulePermissions.map((permission) => (
-                        <div key={permission.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`permission-${permission.id}`}
-                            checked={formData.selectedPermissions.has(permission.id)}
-                            onCheckedChange={(checked) => handlePermissionChange(permission.id, checked as boolean)}
-                          />
-                          <Label 
-                            htmlFor={`permission-${permission.id}`} 
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            {permission.display_name}
-                            <span className="text-xs text-muted-foreground block">
-                              {permission.permission_key}
-                            </span>
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </ScrollArea>
 
