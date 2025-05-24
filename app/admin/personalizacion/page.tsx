@@ -75,6 +75,8 @@ export default function PersonalizacionPage() {
   const [editingVariable, setEditingVariable] = useState<SystemVariable | null>(null);
   const [editingGroup, setEditingGroup] = useState<VariableGroup | null>(null);
   const [autoincrementalValues, setAutoincrementalValues] = useState<Record<string, { current_value: number; formatted_value: string }>>({});
+  const [pendingChanges, setPendingChanges] = useState<Record<string, string | number | boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
   
   // Estados para branding
   const [brandingConfig] = useState({
@@ -453,40 +455,76 @@ export default function PersonalizacionPage() {
     }
   };
 
-  const handleSaveVariable = async (variableKey: string, value: string | number | boolean) => {
-    if (!currentOrganization) return;
+  const handleVariableChange = (variableKey: string, value: string | number | boolean) => {
+    setPendingChanges(prev => ({
+      ...prev,
+      [variableKey]: value
+    }));
+  };
+
+  const handleSaveAllChanges = async () => {
+    if (!currentOrganization || Object.keys(pendingChanges).length === 0) return;
     
+    setIsSaving(true);
     try {
-      // Find the variable to get its ID
-      const variable = systemVariables.find(v => v.key === variableKey);
-      if (!variable) {
-        toast.error('Variable no encontrada');
-        return;
+      const errors: string[] = [];
+      const successes: string[] = [];
+
+      for (const [variableKey, value] of Object.entries(pendingChanges)) {
+        try {
+          // Find the variable to get its ID
+          const variable = systemVariables.find(v => v.key === variableKey);
+          if (!variable) {
+            errors.push(`Variable ${variableKey} no encontrada`);
+            continue;
+          }
+
+          const response = await fetch('/api/variables/user', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              variable_id: variable.id,
+              value: value
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            setOrgVariables(prev => ({ ...prev, [variableKey]: value.toString() }));
+            successes.push(`Variable "${result.variable_name}" actualizada`);
+          } else {
+            const error = await response.json();
+            errors.push(`${variableKey}: ${error.message || 'Error al guardar'}`);
+          }
+        } catch (error) {
+          console.error('Error saving variable:', variableKey, error);
+          errors.push(`${variableKey}: Error de conexión`);
+        }
       }
 
-      const response = await fetch('/api/variables/user', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          variable_id: variable.id,
-          value: value
-        }),
-      });
+      // Clear pending changes
+      setPendingChanges({});
 
-      if (response.ok) {
-        const result = await response.json();
-        setOrgVariables(prev => ({ ...prev, [variableKey]: value.toString() }));
-        toast.success(`Variable "${result.variable_name}" actualizada correctamente`);
-      } else {
-        const error = await response.json();
-        toast.error(error.message || 'Error al guardar la variable');
+      // Show results
+      if (successes.length > 0) {
+        toast.success(`${successes.length} variable(s) guardada(s) correctamente`);
+      }
+      if (errors.length > 0) {
+        toast.error(`Errores: ${errors.join(', ')}`);
       }
     } catch (error) {
-      console.error('Error saving variable:', error);
-      toast.error('Error al guardar la variable');
+      console.error('Error saving variables:', error);
+      toast.error('Error al guardar las variables');
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleDiscardChanges = () => {
+    setPendingChanges({});
+    toast.info('Cambios descartados');
   };
 
   const handleSaveBranding = async () => {
@@ -526,15 +564,19 @@ export default function PersonalizacionPage() {
   }, {} as Record<string, SystemVariable[]>);
 
   const renderVariableInput = (variable: SystemVariable) => {
-    const value = orgVariables[variable.key] || variable.current_value || variable.default_value;
+    // Use pending change if exists, otherwise use saved value
+    const value = pendingChanges[variable.key] !== undefined 
+      ? pendingChanges[variable.key]?.toString()
+      : (orgVariables[variable.key] || variable.current_value || variable.default_value);
     const canEdit = variable.can_edit !== false && variable.is_editable;
+    const hasChanges = pendingChanges[variable.key] !== undefined;
     
     switch (variable.data_type) {
       case 'boolean':
         return (
           <Switch
             checked={value === 'true'}
-            onCheckedChange={canEdit ? (checked) => handleSaveVariable(variable.key, checked) : undefined}
+            onCheckedChange={canEdit ? (checked) => handleVariableChange(variable.key, checked) : undefined}
             disabled={!canEdit}
           />
         );
@@ -543,7 +585,7 @@ export default function PersonalizacionPage() {
           <Input
             type="number"
             value={value}
-            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
+            onChange={canEdit ? (e) => handleVariableChange(variable.key, e.target.value) : undefined}
             className="w-32 text-sm"
             readOnly={!canEdit}
           />
@@ -552,7 +594,7 @@ export default function PersonalizacionPage() {
         return (
           <Input
             value={value}
-            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
+            onChange={canEdit ? (e) => handleVariableChange(variable.key, e.target.value) : undefined}
             placeholder="JSON"
             className="w-48 text-sm font-mono"
             readOnly={!canEdit}
@@ -573,7 +615,7 @@ export default function PersonalizacionPage() {
                 onChange={canEdit ? (e) => {
                   // Update only the suffix in the config
                   const newConfig = { ...variable.config, suffix: e.target.value };
-                  handleSaveVariable(variable.key, JSON.stringify(newConfig));
+                  handleVariableChange(variable.key, JSON.stringify(newConfig));
                   
                   // Update the variable config in memory immediately for preview
                   const updatedVariables = systemVariables.map(v => 
@@ -625,7 +667,7 @@ export default function PersonalizacionPage() {
         return (
           <Input
             value={value}
-            onChange={canEdit ? (e) => handleSaveVariable(variable.key, e.target.value) : undefined}
+            onChange={canEdit ? (e) => handleVariableChange(variable.key, e.target.value) : undefined}
             className="w-48 text-sm"
             readOnly={!canEdit}
           />
@@ -708,13 +750,18 @@ export default function PersonalizacionPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {variables.map((variable) => (
-                      <div key={variable.key} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={variable.key} className={`flex items-center justify-between p-4 border rounded-lg ${pendingChanges[variable.key] !== undefined ? 'border-orange-300 bg-orange-50' : ''}`}>
                         <div className="flex-1">
                           <div className="flex items-center space-x-2">
                             <Label className="font-medium">{variable.name}</Label>
                             <Badge variant="outline" className="text-xs">
                               {variable.key}
                             </Badge>
+                            {pendingChanges[variable.key] !== undefined && (
+                              <Badge variant="default" className="text-xs bg-orange-500">
+                                Cambio pendiente
+                              </Badge>
+                            )}
                             {variable.is_required && (
                               <Badge variant="destructive" className="text-xs">
                                 Requerida
@@ -747,6 +794,42 @@ export default function PersonalizacionPage() {
                   </CardContent>
                 </Card>
               ))
+            )}
+            
+            {/* Botones de acción para cambios pendientes */}
+            {Object.keys(pendingChanges).length > 0 && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="default" className="bg-orange-500">
+                        {Object.keys(pendingChanges).length} cambio(s) pendiente(s)
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        Los cambios no se han guardado
+                      </span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDiscardChanges}
+                        disabled={isSaving}
+                      >
+                        Descartar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveAllChanges}
+                        disabled={isSaving}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </TabsContent>
 

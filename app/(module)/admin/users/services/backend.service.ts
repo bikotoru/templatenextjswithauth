@@ -457,14 +457,14 @@ export class UserBackendService {
         // Eliminar roles existentes
         const deleteRequest = transaction.request();
         deleteRequest.input('userId', userId);
-        await deleteRequest.query('DELETE FROM user_roles WHERE user_id = @userId');
+        await deleteRequest.query('DELETE FROM user_role_assignments WHERE user_id = @userId');
 
         // Insertar nuevos roles
         for (const roleId of roleIds) {
           const insertRequest = transaction.request();
           insertRequest.input('userId', userId);
           insertRequest.input('roleId', roleId);
-          await insertRequest.query('INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)');
+          await insertRequest.query('INSERT INTO user_role_assignments (user_id, role_id) VALUES (@userId, @roleId)');
         }
 
         return true;

@@ -9,43 +9,74 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
     }
 
+    // Check if user is Super Admin or has system-level permissions
+    const isSuperAdmin = user.permissions?.includes('system:manage') || 
+                        user.permissions?.includes('variables:manage') ||
+                        user.roles?.includes('Super Admin');
+
     // Get variables that the user has permission to view
-    const variables = await executeQuery(`
-      SELECT DISTINCT
-        sv.id,
-        sv.group_id,
-        sv.[key],
-        sv.name,
-        sv.description,
-        sv.data_type,
-        sv.category,
-        sv.is_required,
-        sv.is_editable,
-        sv.config,
-        vg.name as group_name,
-        CASE 
-          WHEN vp_user.can_edit = 1 OR vp_role.can_edit = 1 THEN 1 
-          ELSE 0 
-        END as can_edit,
-        CASE 
-          WHEN vp_user.can_view = 1 OR vp_role.can_view = 1 THEN 1 
-          ELSE 0 
-        END as can_view
-      FROM system_variables sv
-      LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
-      LEFT JOIN variable_permissions vp_user ON sv.id = vp_user.variable_id 
-        AND vp_user.user_id = @user_id 
-        AND vp_user.active = 1
-      LEFT JOIN variable_permissions vp_role ON sv.id = vp_role.variable_id 
-        AND vp_role.role_id IN (
-          SELECT role_id FROM user_roles 
-          WHERE user_id = @user_id AND active = 1
-        )
-        AND vp_role.active = 1
-      WHERE sv.active = 1
-      AND (vp_user.can_view = 1 OR vp_role.can_view = 1)
-      ORDER BY CASE WHEN vg.name IS NULL THEN 1 ELSE 0 END, vg.name, sv.name
-    `, { user_id: user.id });
+    let variables;
+    if (isSuperAdmin) {
+      // Super Admin can view and edit all variables
+      variables = await executeQuery(`
+        SELECT DISTINCT
+          sv.id,
+          sv.group_id,
+          sv.[key],
+          sv.name,
+          sv.description,
+          sv.data_type,
+          sv.category,
+          sv.is_required,
+          sv.is_editable,
+          sv.config,
+          vg.name as group_name,
+          1 as can_edit,
+          1 as can_view
+        FROM system_variables sv
+        LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
+        WHERE sv.active = 1
+        ORDER BY CASE WHEN vg.name IS NULL THEN 1 ELSE 0 END, vg.name, sv.name
+      `);
+    } else {
+      // Regular users need specific permissions
+      variables = await executeQuery(`
+        SELECT DISTINCT
+          sv.id,
+          sv.group_id,
+          sv.[key],
+          sv.name,
+          sv.description,
+          sv.data_type,
+          sv.category,
+          sv.is_required,
+          sv.is_editable,
+          sv.config,
+          vg.name as group_name,
+          CASE 
+            WHEN vp_user.can_edit = 1 OR vp_role.can_edit = 1 THEN 1 
+            ELSE 0 
+          END as can_edit,
+          CASE 
+            WHEN vp_user.can_view = 1 OR vp_role.can_view = 1 THEN 1 
+            ELSE 0 
+          END as can_view
+        FROM system_variables sv
+        LEFT JOIN variable_groups vg ON sv.group_id = vg.id AND vg.active = 1
+        LEFT JOIN variable_permissions vp_user ON sv.id = vp_user.variable_id 
+          AND vp_user.user_id = @user_id 
+          AND vp_user.active = 1
+        LEFT JOIN variable_permissions vp_role ON sv.id = vp_role.variable_id 
+          AND vp_role.role_id IN (
+            SELECT role_id FROM user_role_assignments 
+            WHERE user_id = @user_id AND active = 1
+          )
+          AND vp_role.active = 1
+        WHERE sv.active = 1
+        AND (vp_user.can_view = 1 OR vp_role.can_view = 1)
+        ORDER BY CASE WHEN vg.name IS NULL THEN 1 ELSE 0 END, vg.name, sv.name
+      `, { user_id: user.id });
+    }
 
     // Get current values for each variable
     const variableIds = variables.map(v => v.id);
@@ -151,35 +182,60 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Check if user is Super Admin or has system-level permissions
+    const isSuperAdmin = user.permissions?.includes('system:manage') || 
+                        user.permissions?.includes('variables:manage') ||
+                        user.roles?.includes('Super Admin');
+
     // Get the variable and check permissions
-    const variable = await executeQuery(`
-      SELECT 
-        sv.id,
-        sv.[key],
-        sv.name,
-        sv.data_type,
-        sv.is_editable,
-        sv.config,
-        CASE 
-          WHEN vp_user.can_edit = 1 OR vp_role.can_edit = 1 THEN 1 
-          ELSE 0 
-        END as can_edit
-      FROM system_variables sv
-      LEFT JOIN variable_permissions vp_user ON sv.id = vp_user.variable_id 
-        AND vp_user.user_id = @user_id 
-        AND vp_user.active = 1
-      LEFT JOIN variable_permissions vp_role ON sv.id = vp_role.variable_id 
-        AND vp_role.role_id IN (
-          SELECT role_id FROM user_roles 
-          WHERE user_id = @user_id AND active = 1
-        )
-        AND vp_role.active = 1
-      WHERE sv.id = @variable_id AND sv.active = 1
-      AND (vp_user.can_edit = 1 OR vp_role.can_edit = 1)
-    `, { 
-      user_id: user.id, 
-      variable_id: parseInt(variable_id) 
-    });
+    let variable;
+    if (isSuperAdmin) {
+      // Super Admin can edit any variable
+      variable = await executeQuery(`
+        SELECT 
+          sv.id,
+          sv.[key],
+          sv.name,
+          sv.data_type,
+          sv.is_editable,
+          sv.config,
+          1 as can_edit
+        FROM system_variables sv
+        WHERE sv.id = @variable_id AND sv.active = 1
+      `, { 
+        variable_id: parseInt(variable_id) 
+      });
+    } else {
+      // Regular users need specific permissions
+      variable = await executeQuery(`
+        SELECT 
+          sv.id,
+          sv.[key],
+          sv.name,
+          sv.data_type,
+          sv.is_editable,
+          sv.config,
+          CASE 
+            WHEN vp_user.can_edit = 1 OR vp_role.can_edit = 1 THEN 1 
+            ELSE 0 
+          END as can_edit
+        FROM system_variables sv
+        LEFT JOIN variable_permissions vp_user ON sv.id = vp_user.variable_id 
+          AND vp_user.user_id = @user_id 
+          AND vp_user.active = 1
+        LEFT JOIN variable_permissions vp_role ON sv.id = vp_role.variable_id 
+          AND vp_role.role_id IN (
+            SELECT role_id FROM user_role_assignments 
+            WHERE user_id = @user_id AND active = 1
+          )
+          AND vp_role.active = 1
+        WHERE sv.id = @variable_id AND sv.active = 1
+        AND (vp_user.can_edit = 1 OR vp_role.can_edit = 1)
+      `, { 
+        user_id: user.id, 
+        variable_id: parseInt(variable_id) 
+      });
+    }
 
     if (variable.length === 0) {
       return NextResponse.json(

@@ -50,7 +50,7 @@ export async function POST(
         
         -- Role-based permission
         SELECT 1 FROM variable_permissions vp
-        INNER JOIN user_roles ur ON vp.role_id = ur.role_id
+        INNER JOIN user_role_assignments ur ON vp.role_id = ur.role_id
         WHERE vp.variable_id = @variable_id 
         AND ur.user_id = @user_id
         AND vp.can_edit = 1 
@@ -172,37 +172,44 @@ export async function GET(
       );
     }
 
-    // Check if user has permission to view this variable
-    const hasPermission = await executeQuery(`
-      SELECT 1 FROM (
-        -- Direct user permission
-        SELECT 1 FROM variable_permissions vp
-        WHERE vp.variable_id = @variable_id 
-        AND vp.user_id = @user_id 
-        AND vp.can_view = 1 
-        AND vp.active = 1
-        
-        UNION
-        
-        -- Role-based permission
-        SELECT 1 FROM variable_permissions vp
-        INNER JOIN user_roles ur ON vp.role_id = ur.role_id
-        WHERE vp.variable_id = @variable_id 
-        AND ur.user_id = @user_id
-        AND vp.can_view = 1 
-        AND vp.active = 1
-        AND ur.active = 1
-      ) permissions
-    `, { 
-      variable_id: parseInt(id), 
-      user_id: user.id 
-    });
+    // Check if user is Super Admin or has system-level permissions
+    const isSuperAdmin = user.permissions?.includes('system:manage') || 
+                        user.permissions?.includes('variables:manage') ||
+                        user.roles?.includes('Super Admin');
 
-    if (hasPermission.length === 0) {
-      return NextResponse.json(
-        { message: 'Sin permisos para ver esta variable' },
-        { status: 403 }
-      );
+    // Check if user has permission to view this variable (skip for Super Admin)
+    if (!isSuperAdmin) {
+      const hasPermission = await executeQuery(`
+        SELECT 1 as has_perm FROM (
+          -- Direct user permission
+          SELECT 1 FROM variable_permissions vp
+          WHERE vp.variable_id = @variable_id 
+          AND vp.user_id = @user_id 
+          AND vp.can_view = 1 
+          AND vp.active = 1
+          
+          UNION
+          
+          -- Role-based permission
+          SELECT 1 FROM variable_permissions vp
+          INNER JOIN user_role_assignments ur ON vp.role_id = ur.role_id
+          WHERE vp.variable_id = @variable_id 
+          AND ur.user_id = @user_id
+          AND vp.can_view = 1 
+          AND vp.active = 1
+          AND ur.active = 1
+        ) permissions
+      `, { 
+        variable_id: parseInt(id), 
+        user_id: user.id 
+      });
+
+      if (hasPermission.length === 0) {
+        return NextResponse.json(
+          { message: 'Sin permisos para ver esta variable' },
+          { status: 403 }
+        );
+      }
     }
 
     // Get the current value and history
