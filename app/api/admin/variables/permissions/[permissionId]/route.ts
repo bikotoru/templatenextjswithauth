@@ -4,7 +4,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { permissionId: string } }
+  { params }: { params: Promise<{ permissionId: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -17,7 +17,7 @@ export async function PUT(
       return NextResponse.json({ message: 'Sin permisos para editar permisos de variables' }, { status: 403 });
     }
 
-    const { permissionId } = params;
+    const { permissionId } = await params;
     const body = await request.json();
     const { can_view, can_edit } = body;
 
@@ -76,7 +76,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { permissionId: string } }
+  { params }: { params: Promise<{ permissionId: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -89,7 +89,7 @@ export async function DELETE(
       return NextResponse.json({ message: 'Sin permisos para eliminar permisos de variables' }, { status: 403 });
     }
 
-    const { permissionId } = params;
+    const { permissionId } = await params;
 
     // Check if permission exists
     const existingPermission = await executeQuery(`

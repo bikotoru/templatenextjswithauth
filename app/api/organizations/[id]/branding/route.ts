@@ -14,7 +14,7 @@ export async function POST(
     }
 
     // Check if user belongs to this organization or has admin permissions
-    if (user.organization_id !== id && !user.permissions.includes('organizations:manage')) {
+    if (user.organizationId !== id && !user.permissions.includes('organizations:manage')) {
       return NextResponse.json({ message: 'Sin permisos para modificar esta organización' }, { status: 403 });
     }
 

@@ -40,7 +40,7 @@ interface SystemVariable {
   is_editable: boolean;
   group_id?: number;
   group_name?: string;
-  config?: any;
+  config?: { suffix?: string; digits?: number };
   can_view?: boolean;
   can_edit?: boolean;
   current_value?: string;
@@ -77,7 +77,7 @@ export default function PersonalizacionPage() {
   const [autoincrementalValues, setAutoincrementalValues] = useState<Record<string, { current_value: number; formatted_value: string }>>({});
   
   // Estados para branding
-  const [brandingConfig, setBrandingConfig] = useState({
+  const [brandingConfig] = useState({
     logo: currentOrganization?.logo || '',
     favicon: ''
   });
@@ -97,20 +97,49 @@ export default function PersonalizacionPage() {
           }
         }
 
-        // Fetch user-accessible variables (with permissions)
-        const userVarResponse = await fetch('/api/variables/user');
-        if (userVarResponse.ok) {
-          const userVars = await userVarResponse.json();
-          setSystemVariables(userVars.filter((v: SystemVariable) => v.can_view));
-          
-          // Map current values
-          const varMap: Record<string, string> = {};
-          userVars.forEach((variable: SystemVariable & { current_value: string }) => {
-            if (variable.current_value !== null && variable.current_value !== undefined) {
-              varMap[variable.key] = variable.current_value;
+        // For sysadmin: get ALL variables with full permissions
+        // For regular users: get only permitted variables
+        if (hasPermission('system:manage') || hasPermission('variables:manage')) {
+          // Sysadmin - can see and edit ALL variables
+          const allVarResponse = await fetch('/api/admin/system-variables');
+          if (allVarResponse.ok) {
+            const allVars = await allVarResponse.json();
+            const varsWithGodMode = allVars.map((v: SystemVariable) => ({
+              ...v,
+              can_view: true,
+              can_edit: true // Sysadmin can edit everything
+            }));
+            setSystemVariables(varsWithGodMode.filter((v: SystemVariable) => v.is_editable));
+            
+            // Get organization values for sysadmin
+            const orgVarResponse = await fetch(`/api/organizations/${currentOrganization.id}/variables`);
+            if (orgVarResponse.ok) {
+              const orgVars = await orgVarResponse.json();
+              const varMap: Record<string, string> = {};
+              orgVars.forEach((orgVar: OrganizationVariable & { system_variable: SystemVariable }) => {
+                varMap[orgVar.system_variable.key] = orgVar.value;
+              });
+              setOrgVariables(varMap);
             }
-          });
-          setOrgVariables(varMap);
+          }
+        } else {
+          // Regular users - only permitted variables
+          const userVarResponse = await fetch('/api/variables/user');
+          if (userVarResponse.ok) {
+            const userVars = await userVarResponse.json();
+            // Only show variables with view permission
+            const viewableVars = userVars.filter((v: SystemVariable) => v.can_view);
+            setSystemVariables(viewableVars);
+            
+            // Map current values
+            const varMap: Record<string, string> = {};
+            viewableVars.forEach((variable: SystemVariable & { current_value: string }) => {
+              if (variable.current_value !== null && variable.current_value !== undefined) {
+                varMap[variable.key] = variable.current_value;
+              }
+            });
+            setOrgVariables(varMap);
+          }
         }
         
         // Fetch variable groups (for designer)
@@ -122,30 +151,7 @@ export default function PersonalizacionPage() {
           }
         }
 
-        // Fetch autoincremental current values
-        try {
-          const autoincrementalVars = sysVars.filter((v: SystemVariable) => v.data_type === 'autoincremental');
-          const autoincrementalData: Record<string, { current_value: number; formatted_value: string }> = {};
-          
-          for (const variable of autoincrementalVars) {
-            try {
-              const response = await fetch(`/api/variables/${variable.id}/increment`);
-              if (response.ok) {
-                const data = await response.json();
-                autoincrementalData[variable.key] = {
-                  current_value: data.current_value || 0,
-                  formatted_value: data.formatted_value || null
-                };
-              }
-            } catch (error) {
-              console.warn(`Error fetching autoincremental data for ${variable.key}:`, error);
-            }
-          }
-          
-          setAutoincrementalValues(autoincrementalData);
-        } catch (error) {
-          console.warn('Error fetching autoincremental values:', error);
-        }
+        // Note: Autoincremental values are fetched in a separate useEffect below
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -154,16 +160,49 @@ export default function PersonalizacionPage() {
     fetchData();
   }, [currentOrganization, hasPermission]);
 
+  // Separate useEffect for fetching autoincremental values when systemVariables changes
+  useEffect(() => {
+    const fetchAutoincrementalValues = async () => {
+      if (systemVariables.length === 0) return;
+      
+      try {
+        const autoincrementalVars = systemVariables.filter((v: SystemVariable) => v.data_type === 'autoincremental');
+        const autoincrementalData: Record<string, { current_value: number; formatted_value: string }> = {};
+        
+        for (const variable of autoincrementalVars) {
+          try {
+            const response = await fetch(`/api/variables/${variable.id}/increment`);
+            if (response.ok) {
+              const data = await response.json();
+              autoincrementalData[variable.key] = {
+                current_value: data.current_value || 0,
+                formatted_value: data.formatted_value || null
+              };
+            }
+          } catch (error) {
+            console.warn(`Error fetching autoincremental data for ${variable.key}:`, error);
+          }
+        }
+        
+        setAutoincrementalValues(autoincrementalData);
+      } catch (error) {
+        console.warn('Error fetching autoincremental values:', error);
+      }
+    };
+
+    fetchAutoincrementalValues();
+  }, [systemVariables]);
+
   // Optimized state update functions
-  const updateGroupField = useCallback((field: keyof VariableGroup, value: any) => {
+  const updateGroupField = useCallback((field: keyof VariableGroup, value: string | number | boolean) => {
     setEditingGroup(prev => prev ? { ...prev, [field]: value } : null);
   }, []);
 
-  const updateVariableField = useCallback((field: keyof SystemVariable, value: any) => {
+  const updateVariableField = useCallback((field: keyof SystemVariable, value: string | number | boolean) => {
     setEditingVariable(prev => prev ? { ...prev, [field]: value } : null);
   }, []);
 
-  const updateVariableConfig = useCallback((field: string, value: any) => {
+  const updateVariableConfig = useCallback((field: string, value: string | number) => {
     setEditingVariable(prev => prev ? {
       ...prev,
       config: { ...(prev.config || {}), [field]: value }
@@ -414,7 +453,7 @@ export default function PersonalizacionPage() {
     }
   };
 
-  const handleSaveVariable = async (variableKey: string, value: any) => {
+  const handleSaveVariable = async (variableKey: string, value: string | number | boolean) => {
     if (!currentOrganization) return;
     
     try {
@@ -816,7 +855,7 @@ export default function PersonalizacionPage() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>¿Eliminar grupo?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Esta acción eliminará permanentemente el grupo "{group.name}" y todas sus variables asociadas. Esta acción no se puede deshacer.
+                                      Esta acción eliminará permanentemente el grupo &quot;{group.name}&quot; y todas sus variables asociadas. Esta acción no se puede deshacer.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -919,7 +958,7 @@ export default function PersonalizacionPage() {
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>¿Eliminar variable?</AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            Esta acción eliminará permanentemente la variable "{variable.name}". Esta acción no se puede deshacer.
+                                            Esta acción eliminará permanentemente la variable &quot;{variable.name}&quot;. Esta acción no se puede deshacer.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -1023,7 +1062,7 @@ export default function PersonalizacionPage() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>¿Eliminar variable?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Esta acción eliminará permanentemente la variable "{variable.name}". Esta acción no se puede deshacer.
+                                      Esta acción eliminará permanentemente la variable &quot;{variable.name}&quot;. Esta acción no se puede deshacer.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>

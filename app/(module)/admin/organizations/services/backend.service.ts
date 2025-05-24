@@ -187,7 +187,7 @@ export class OrganizationBackendService {
         return { success: false, error: 'Usuario no válido' };
       }
 
-      return await executeTransaction(async (transaction) => {
+      const result = await executeTransaction(async (transaction) => {
         // Verificar si ya existe una organización con el mismo nombre
         const checkOrgNameQuery = `
           SELECT id FROM organizations WHERE name = @name AND active = 1

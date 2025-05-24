@@ -23,6 +23,7 @@ export interface UserCreateRequest {
   active?: boolean;
   roleIds?: number[];
   permissionIds?: number[];
+  organizationId?: string;
 }
 
 export interface UserUpdateRequest {

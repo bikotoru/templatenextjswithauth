@@ -4,7 +4,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -12,7 +12,7 @@ export async function POST(
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get the variable and validate it's autoincremental
     const variable = await executeQuery(`
@@ -90,7 +90,7 @@ export async function POST(
       ORDER BY current_value DESC
     `, { 
       variable_id: parseInt(id),
-      organization_id: user.organization_id 
+      organization_id: user.organizationId 
     });
 
     let nextValue = 1;
@@ -114,7 +114,7 @@ export async function POST(
       )
     `, {
       variable_id: parseInt(id),
-      organization_id: user.organization_id,
+      organization_id: user.organizationId,
       current_value: nextValue,
       formatted_value: formattedValue,
       created_by: user.id,
@@ -141,7 +141,7 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -149,7 +149,7 @@ export async function GET(
       return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get the variable and validate it's autoincremental
     const variable = await executeQuery(`
@@ -214,7 +214,7 @@ export async function GET(
       ORDER BY current_value DESC
     `, { 
       variable_id: parseInt(id),
-      organization_id: user.organization_id 
+      organization_id: user.organizationId 
     });
 
     // Parse config

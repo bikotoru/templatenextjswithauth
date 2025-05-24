@@ -38,12 +38,14 @@ interface RoleListProps {
   onRoleSelect?: (role: RoleType) => void;
   onRoleEdit?: (role: RoleType) => void;
   onRoleCreate?: () => void;
+  onManagePermissions?: (role: RoleType) => void;
 }
 
 export default function RoleList({ 
   onRoleSelect, 
   onRoleEdit, 
-  onRoleCreate 
+  onRoleCreate,
+  onManagePermissions 
 }: RoleListProps) {
   const { hasPermission } = useAuth();
   const [roles, setRoles] = useState<RoleType[]>([]);
@@ -207,6 +209,15 @@ export default function RoleList({
                           }}>
                             <Edit className="mr-2 h-4 w-4" />
                             Editar
+                          </DropdownMenuItem>
+                        )}
+                        {hasPermission('roles:manage_permissions') && (
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            onManagePermissions?.(role);
+                          }}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Gestionar Permisos
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />

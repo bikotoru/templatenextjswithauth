@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         WHERE ov.system_variable_id IN (${variableIds.map((_, i) => `@id${i}`).join(',')})
         AND ov.organization_id = @organization_id
       `, {
-        organization_id: user.organization_id,
+        organization_id: user.organizationId,
         ...variableIds.reduce((acc, id, index) => ({ ...acc, [`id${index}`]: id }), {})
       });
 
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           ) latest ON vv.variable_id = latest.variable_id AND vv.current_value = latest.max_value
           WHERE vv.organization_id = @organization_id
         `, {
-          organization_id: user.organization_id,
+          organization_id: user.organizationId,
           ...autoincrementalVars.reduce((acc, v, index) => ({ ...acc, [`autoId${index}`]: v.id }), {})
         });
 
@@ -240,7 +240,7 @@ export async function PUT(request: NextRequest) {
       AND organization_id = @organization_id
     `, { 
       variable_id: parseInt(variable_id),
-      organization_id: user.organization_id 
+      organization_id: user.organizationId 
     });
 
     if (existingOrgVar.length > 0) {
@@ -253,7 +253,7 @@ export async function PUT(request: NextRequest) {
       `, {
         value: typeof validatedValue === 'object' ? JSON.stringify(validatedValue) : String(validatedValue),
         variable_id: parseInt(variable_id),
-        organization_id: user.organization_id,
+        organization_id: user.organizationId,
         updated_by: user.id
       });
     } else {
@@ -267,7 +267,7 @@ export async function PUT(request: NextRequest) {
         )
       `, {
         variable_id: parseInt(variable_id),
-        organization_id: user.organization_id,
+        organization_id: user.organizationId,
         value: typeof validatedValue === 'object' ? JSON.stringify(validatedValue) : String(validatedValue),
         created_by: user.id,
         updated_by: user.id

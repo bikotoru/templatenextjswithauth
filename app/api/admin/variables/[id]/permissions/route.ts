@@ -4,7 +4,7 @@ import { verifyAuthFromRequest } from '@/utils/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ message: 'Sin permisos para ver permisos de variables' }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Check if variable exists
     const variable = await executeQuery(`
@@ -64,7 +64,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await verifyAuthFromRequest(request);
@@ -77,7 +77,7 @@ export async function POST(
       return NextResponse.json({ message: 'Sin permisos para crear permisos de variables' }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { user_id, role_id, can_view, can_edit } = body;
 

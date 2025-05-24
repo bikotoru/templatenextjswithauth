@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, executeQuerySingle } from '@/utils/sql';
+import { executeQuery } from '@/utils/sql';
 import { verifyAuthFromRequest } from '@/utils/auth';
 
 export async function GET(

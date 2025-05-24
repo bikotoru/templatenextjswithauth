@@ -24,11 +24,9 @@ import {
   LogOut,
   Menu,
   ChevronDown,
-  Palette,
   User,
   UserCog,
   Settings,
-  Cog,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';

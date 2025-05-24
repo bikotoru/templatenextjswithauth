@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery, executeQuerySingle } from '@/utils/sql';
+import { executeQuery } from '@/utils/sql';
 import { verifyAuthFromRequest } from '@/utils/auth';
 
 export async function GET(
@@ -14,7 +14,7 @@ export async function GET(
     }
 
     // Check if user belongs to this organization or has admin permissions
-    if (user.organization_id !== id && !user.permissions.includes('organizations:view_all')) {
+    if (user.organizationId !== id && !user.permissions.includes('organizations:view_all')) {
       return NextResponse.json({ message: 'Sin permisos para acceder a esta organización' }, { status: 403 });
     }
 
@@ -81,7 +81,7 @@ export async function POST(
     }
 
     // Check if user belongs to this organization or has admin permissions
-    if (user.organization_id !== id && !user.permissions.includes('organizations:manage')) {
+    if (user.organizationId !== id && !user.permissions.includes('organizations:manage')) {
       return NextResponse.json({ message: 'Sin permisos para modificar esta organización' }, { status: 403 });
     }
 
