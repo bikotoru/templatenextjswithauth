@@ -25,6 +25,8 @@ export function CorporateThemeSelector() {
     setIsChanging(true);
     try {
       await changePalette(paletteKey);
+      // Scroll al inicio después de cambiar el tema
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       console.error('Error changing palette:', error);
     } finally {
@@ -82,16 +84,23 @@ export function CorporateThemeSelector() {
           </h4>
           
           <div className="grid grid-cols-1 gap-4">
-            {availablePalettes.map((palette) => (
-              <PaletteOption
-                key={palette.key}
-                palette={palette}
-                isSelected={currentPalette === palette.key}
-                onSelect={() => handlePaletteChange(palette.key)}
-                isDarkMode={isDarkMode}
-                isDisabled={isChanging}
-              />
-            ))}
+            {/* Ordenar paletas: tema seleccionado primero, luego el resto */}
+            {availablePalettes
+              .sort((a, b) => {
+                if (a.key === currentPalette) return -1;
+                if (b.key === currentPalette) return 1;
+                return 0;
+              })
+              .map((palette) => (
+                <PaletteOption
+                  key={palette.key}
+                  palette={palette}
+                  isSelected={currentPalette === palette.key}
+                  onSelect={() => handlePaletteChange(palette.key)}
+                  isDarkMode={isDarkMode}
+                  isDisabled={isChanging}
+                />
+              ))}
           </div>
           
           <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
